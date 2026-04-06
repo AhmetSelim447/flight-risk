@@ -1,0 +1,1551 @@
+[
+  {
+    "icao": "LTAB",
+    "city": "Ankara",
+    "name": "Güvercinlik Airport",
+    "coords": {
+      "lat": 39.935001,
+      "lng": 32.740799
+    },
+    "runways": [
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 2014
+      },
+      {
+        "id": "09/27",
+        "heading": 0,
+        "length_m": 870
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAC",
+    "iata": "ESB",
+    "city": "Ankara",
+    "name": "Esenboğa International Airport",
+    "coords": {
+      "lat": 40.128101,
+      "lng": 32.995098
+    },
+    "runways": [
+      {
+        "id": "03L/21R",
+        "heading": 0,
+        "length_m": 3750
+      },
+      {
+        "id": "03R/21L",
+        "heading": 0,
+        "length_m": 3750
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAD",
+    "iata": "ANK",
+    "city": "Ankara",
+    "name": "Etimesgut Air Base",
+    "coords": {
+      "lat": 39.949798584,
+      "lng": 32.6885986328
+    },
+    "runways": [
+      {
+        "id": "11L/29R",
+        "heading": 0,
+        "length_m": 2757
+      },
+      {
+        "id": "11R/29L",
+        "heading": 0,
+        "length_m": 1509
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAE",
+    "city": "Ankara",
+    "name": "Akıncı Air Base",
+    "coords": {
+      "lat": 40.078899,
+      "lng": 32.565601
+    },
+    "runways": [
+      {
+        "id": "03/21",
+        "heading": 0,
+        "length_m": 3350
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAF",
+    "iata": "ADA",
+    "city": "Seyhan",
+    "name": "Adana Şakirpaşa Airport",
+    "coords": {
+      "lat": 36.982201,
+      "lng": 35.280399
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 2750
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAG",
+    "iata": "UAB",
+    "city": "Sarıçam",
+    "name": "İncirlik Air Base",
+    "coords": {
+      "lat": 37.002102,
+      "lng": 35.4259
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 3048
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAH",
+    "iata": "AFY",
+    "city": "Afyonkarahisar",
+    "name": "Afyon Air Base",
+    "coords": {
+      "lat": 38.726398,
+      "lng": 30.601101
+    },
+    "runways": [
+      {
+        "id": "13L/31R",
+        "heading": 0,
+        "length_m": 3660
+      },
+      {
+        "id": "13R/31L",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAI",
+    "iata": "AYT",
+    "city": "Antalya",
+    "name": "Antalya International Airport",
+    "coords": {
+      "lat": 36.898701,
+      "lng": 30.800501
+    },
+    "runways": [
+      {
+        "id": "18C/36C",
+        "heading": 0,
+        "length_m": 3400
+      },
+      {
+        "id": "18L/36R",
+        "heading": 0,
+        "length_m": 3400
+      },
+      {
+        "id": "18R/36L",
+        "heading": 0,
+        "length_m": 2990
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAJ",
+    "iata": "GZT",
+    "city": "Gaziantep",
+    "name": "Gaziantep Oğuzeli International Airport",
+    "coords": {
+      "lat": 36.947201,
+      "lng": 37.478699
+    },
+    "runways": [
+      {
+        "id": "10L/28R",
+        "heading": 0,
+        "length_m": 3000
+      },
+      {
+        "id": "10R/28L",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAL",
+    "iata": "KFS",
+    "city": "Kastamonu",
+    "name": "Kastamonu Airport",
+    "coords": {
+      "lat": 41.314201,
+      "lng": 33.795799
+    },
+    "runways": [
+      {
+        "id": "18/36",
+        "heading": 0,
+        "length_m": 2250
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAN",
+    "iata": "KYA",
+    "city": "Konya",
+    "name": "Konya Airport",
+    "coords": {
+      "lat": 37.979,
+      "lng": 32.561901
+    },
+    "runways": [
+      {
+        "id": "01L/19R",
+        "heading": 0,
+        "length_m": 3350
+      },
+      {
+        "id": "01R/19L",
+        "heading": 0,
+        "length_m": 3350
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAO",
+    "city": "Malatya",
+    "name": "Malatya Tulga Airport",
+    "coords": {
+      "lat": 38.353699,
+      "lng": 38.253899
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 2400
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAP",
+    "iata": "MZH",
+    "city": "Amasya",
+    "name": "Amasya Merzifon Airport",
+    "coords": {
+      "lat": 40.829399,
+      "lng": 35.521999
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 2926
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAR",
+    "iata": "VAS",
+    "city": "Sivas",
+    "name": "Sivas Nuri Demirağ Airport",
+    "coords": {
+      "lat": 39.813801,
+      "lng": 36.9035
+    },
+    "runways": [
+      {
+        "id": "01/19",
+        "heading": 0,
+        "length_m": 3811
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAS",
+    "iata": "ONQ",
+    "city": "Zonguldak",
+    "name": "Zonguldak Çaycuma Airport",
+    "coords": {
+      "lat": 41.506401,
+      "lng": 32.0886
+    },
+    "runways": [
+      {
+        "id": "18/36",
+        "heading": 0,
+        "length_m": 2131
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAT",
+    "iata": "MLX",
+    "city": "Malatya",
+    "name": "Malatya Erhaç Airport",
+    "coords": {
+      "lat": 38.435298919699996,
+      "lng": 38.0909996033
+    },
+    "runways": [
+      {
+        "id": "03/21",
+        "heading": 0,
+        "length_m": 3350
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAU",
+    "iata": "ASR",
+    "city": "Kayseri",
+    "name": "Kayseri Erkilet International Airport",
+    "coords": {
+      "lat": 38.770401,
+      "lng": 35.495399
+    },
+    "runways": [
+      {
+        "id": "07/25",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAV",
+    "city": "Sivrihisar",
+    "name": "Sivrihisar Airport",
+    "coords": {
+      "lat": 39.4515,
+      "lng": 31.365299
+    },
+    "runways": [
+      {
+        "id": "11/29",
+        "heading": 0,
+        "length_m": 3400
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAW",
+    "iata": "TJK",
+    "city": "Tokat",
+    "name": "Tokat Airport",
+    "coords": {
+      "lat": 40.32472,
+      "lng": 36.39056
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 1615
+      },
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 2700
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAY",
+    "iata": "DNZ",
+    "city": "Denizli",
+    "name": "Çardak Airport",
+    "coords": {
+      "lat": 37.7855987549,
+      "lng": 29.7012996674
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAZ",
+    "iata": "NAV",
+    "city": "Nevşehir",
+    "name": "Nevşehir Kapadokya Airport",
+    "coords": {
+      "lat": 38.7719,
+      "lng": 34.5345
+    },
+    "runways": [
+      {
+        "id": "11/29",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBA",
+    "iata": "ISL",
+    "city": "Istanbul(Bakırköy)",
+    "name": "İstanbul Atatürk Airport",
+    "coords": {
+      "lat": 40.971913,
+      "lng": 28.823714
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 2600
+      },
+      {
+        "id": "17L/35R",
+        "heading": 0,
+        "length_m": 3000
+      },
+      {
+        "id": "17R/35L",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBD",
+    "iata": "CII",
+    "city": "Aydın",
+    "name": "Aydın Çıldır Airport",
+    "coords": {
+      "lat": 37.815389,
+      "lng": 27.887566
+    },
+    "runways": [
+      {
+        "id": "09/27",
+        "heading": 0,
+        "length_m": 1435
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBF",
+    "iata": "BZI",
+    "city": "Balıkesir",
+    "name": "Balıkesir Airport",
+    "coords": {
+      "lat": 39.619301,
+      "lng": 27.926001
+    },
+    "runways": [
+      {
+        "id": "18/36",
+        "heading": 0,
+        "length_m": 2990
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBG",
+    "iata": "BDM",
+    "city": "Bandırma",
+    "name": "Bandırma Airport",
+    "coords": {
+      "lat": 40.318001,
+      "lng": 27.977699
+    },
+    "runways": [
+      {
+        "id": "18/36",
+        "heading": 0,
+        "length_m": 3010
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBH",
+    "iata": "CKZ",
+    "city": "Çanakkale",
+    "name": "Çanakkale Airport",
+    "coords": {
+      "lat": 40.1376991272,
+      "lng": 26.4267997742
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 2350
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBI",
+    "iata": "ESK",
+    "city": "Eskişehir",
+    "name": "Eskişehir Air Base",
+    "coords": {
+      "lat": 39.7841,
+      "lng": 30.5821
+    },
+    "runways": [
+      {
+        "id": "08/26",
+        "heading": 0,
+        "length_m": 3050
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBJ",
+    "iata": "ADB",
+    "city": "Gaziemir",
+    "name": "Adnan Menderes International Airport",
+    "coords": {
+      "lat": 38.2924,
+      "lng": 27.157
+    },
+    "runways": [
+      {
+        "id": "16L/34R",
+        "heading": 0,
+        "length_m": 3240
+      },
+      {
+        "id": "16R/34L",
+        "heading": 0,
+        "length_m": 3240
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBK",
+    "city": "Gaziemir",
+    "name": "Gaziemir Air Base",
+    "coords": {
+      "lat": 38.319099,
+      "lng": 27.159401
+    },
+    "runways": [
+      {
+        "id": "17/35",
+        "heading": 0,
+        "length_m": 1357
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBL",
+    "iata": "IGL",
+    "city": "Çiğli",
+    "name": "Çiğli Airbase",
+    "coords": {
+      "lat": 38.513,
+      "lng": 27.010099
+    },
+    "runways": [
+      {
+        "id": "17/35",
+        "heading": 0,
+        "length_m": 2993
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBM",
+    "city": "Isparta",
+    "name": "Isparta Airport",
+    "coords": {
+      "lat": 37.787409,
+      "lng": 30.588341
+    },
+    "runways": [
+      {
+        "id": "14/32",
+        "heading": 0,
+        "length_m": 1001
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBN",
+    "city": "Kütahya",
+    "name": "Kütahya Airport",
+    "coords": {
+      "lat": 39.426701,
+      "lng": 30.016899
+    },
+    "runways": [
+      {
+        "id": "16/34",
+        "heading": 0,
+        "length_m": 1509
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBO",
+    "iata": "USQ",
+    "city": "Uşak",
+    "name": "Uşak Airport",
+    "coords": {
+      "lat": 38.681499,
+      "lng": 29.471701
+    },
+    "runways": [
+      {
+        "id": "09/27",
+        "heading": 0,
+        "length_m": 2557
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBP",
+    "city": "Çiftlikköy",
+    "name": "Yalova Air Base",
+    "coords": {
+      "lat": 40.686279,
+      "lng": 29.37707
+    },
+    "runways": [
+      {
+        "id": "08/26",
+        "heading": 0,
+        "length_m": 1403
+      },
+      {
+        "id": "18/36",
+        "heading": 0,
+        "length_m": 1349
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBQ",
+    "iata": "KCO",
+    "city": "Kartepe",
+    "name": "Cengiz Topel Airport",
+    "coords": {
+      "lat": 40.735001,
+      "lng": 30.0833
+    },
+    "runways": [
+      {
+        "id": "09/27",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBR",
+    "iata": "YEI",
+    "city": "Yenişehir",
+    "name": "Bursa Yenişehir Airport",
+    "coords": {
+      "lat": 40.255199,
+      "lng": 29.562599
+    },
+    "runways": [
+      {
+        "id": "07L/25R",
+        "heading": 0,
+        "length_m": 2993
+      },
+      {
+        "id": "07R/25L",
+        "heading": 0,
+        "length_m": 2993
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBS",
+    "iata": "DLM",
+    "city": "Dalaman",
+    "name": "Dalaman International Airport",
+    "coords": {
+      "lat": 36.7131,
+      "lng": 28.7925
+    },
+    "runways": [
+      {
+        "id": "01/19",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBT",
+    "city": "Akhisar",
+    "name": "Akhisar Airport / Akhisar Air Base",
+    "coords": {
+      "lat": 38.808899,
+      "lng": 27.8339
+    },
+    "runways": [
+      {
+        "id": "14L/32R",
+        "heading": 0,
+        "length_m": 2992
+      },
+      {
+        "id": "14R/32L",
+        "heading": 0,
+        "length_m": 2992
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBU",
+    "iata": "TEQ",
+    "city": "Çorlu",
+    "name": "Tekirdağ Çorlu Airport",
+    "coords": {
+      "lat": 41.138199,
+      "lng": 27.9191
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBV",
+    "iata": "BXN",
+    "city": "Bodrum",
+    "name": "Bodrum-Imsık Airport",
+    "coords": {
+      "lat": 37.140099,
+      "lng": 27.669701
+    },
+    "runways": [
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 1570
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBW",
+    "city": "Çatalca",
+    "name": "İstanbul Hezarfen Airfield",
+    "coords": {
+      "lat": 41.1036,
+      "lng": 28.547701
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 535
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBX",
+    "city": "Ümraniye, Istanbul",
+    "name": "İstanbul Samandıra Army Air Base",
+    "coords": {
+      "lat": 40.993,
+      "lng": 29.216499
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 764
+      },
+      {
+        "id": "18/36",
+        "heading": 0,
+        "length_m": 1380
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBY",
+    "iata": "AOE",
+    "city": "Eskişehir",
+    "name": "Hasan Polatkan Airport",
+    "coords": {
+      "lat": 39.811644,
+      "lng": 30.519268
+    },
+    "runways": [
+      {
+        "id": "09/27",
+        "heading": 0,
+        "length_m": 2518
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBZ",
+    "iata": "KZR",
+    "city": "Altıntaş",
+    "name": "Zafer Airport",
+    "coords": {
+      "lat": 39.111107,
+      "lng": 30.130405
+    },
+    "runways": [
+      {
+        "id": "13/31",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCA",
+    "iata": "EZS",
+    "city": "Elazığ",
+    "name": "Elazığ Airport",
+    "coords": {
+      "lat": 38.597974,
+      "lng": 39.28348
+    },
+    "runways": [
+      {
+        "id": "07/25",
+        "heading": 0,
+        "length_m": 3000
+      },
+      {
+        "id": "13/31",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCB",
+    "iata": "OGU",
+    "city": "Ordu",
+    "name": "Ordu–Giresun Airport",
+    "coords": {
+      "lat": 40.966872,
+      "lng": 38.085995
+    },
+    "runways": [
+      {
+        "id": "10/28",
+        "heading": 0,
+        "length_m": 3002
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCC",
+    "iata": "DIY",
+    "city": "Diyarbakır",
+    "name": "Diyarbakır Airport",
+    "coords": {
+      "lat": 37.893902,
+      "lng": 40.201
+    },
+    "runways": [
+      {
+        "id": "16/34",
+        "heading": 0,
+        "length_m": 3549
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCD",
+    "iata": "ERC",
+    "city": "Erzincan",
+    "name": "Erzincan Airport",
+    "coords": {
+      "lat": 39.7102012634,
+      "lng": 39.527000427199994
+    },
+    "runways": [
+      {
+        "id": "10/28",
+        "heading": 0,
+        "length_m": 3000
+      },
+      {
+        "id": "13/31",
+        "heading": 0,
+        "length_m": 1768
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCE",
+    "iata": "ERZ",
+    "city": "Erzurum",
+    "name": "Erzurum International Airport",
+    "coords": {
+      "lat": 39.956501,
+      "lng": 41.1702
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 930
+      },
+      {
+        "id": "08L/26R",
+        "heading": 0,
+        "length_m": 3810
+      },
+      {
+        "id": "08R/26L",
+        "heading": 0,
+        "length_m": 3810
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCF",
+    "iata": "KSY",
+    "city": "Kars",
+    "name": "Kars Airport",
+    "coords": {
+      "lat": 40.562198638916016,
+      "lng": 43.1150016784668
+    },
+    "runways": [
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 3500
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCG",
+    "iata": "TZX",
+    "city": "Trabzon",
+    "name": "Trabzon International Airport",
+    "coords": {
+      "lat": 40.995098,
+      "lng": 39.7897
+    },
+    "runways": [
+      {
+        "id": "11/29",
+        "heading": 0,
+        "length_m": 2640
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCI",
+    "iata": "VAN",
+    "city": "Van",
+    "name": "Van Ferit Melen Airport",
+    "coords": {
+      "lat": 38.46820068359375,
+      "lng": 43.332298278808594
+    },
+    "runways": [
+      {
+        "id": "03/21",
+        "heading": 0,
+        "length_m": 2750
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCJ",
+    "iata": "BAL",
+    "city": "Batman",
+    "name": "Batman Airport",
+    "coords": {
+      "lat": 37.929001,
+      "lng": 41.1166
+    },
+    "runways": [
+      {
+        "id": "02/20",
+        "heading": 0,
+        "length_m": 3048
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCK",
+    "iata": "MSR",
+    "city": "Muş",
+    "name": "Muş Airport",
+    "coords": {
+      "lat": 38.747798919677734,
+      "lng": 41.66120147705078
+    },
+    "runways": [
+      {
+        "id": "11/29",
+        "heading": 0,
+        "length_m": 3551
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCL",
+    "iata": "SXZ",
+    "city": "Siirt",
+    "name": "Siirt Airport",
+    "coords": {
+      "lat": 37.97890090942383,
+      "lng": 41.84040069580078
+    },
+    "runways": [
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 1800
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCM",
+    "iata": "NOP",
+    "city": "Sinop",
+    "name": "Sinop Airport",
+    "coords": {
+      "lat": 42.018313,
+      "lng": 35.071774
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 1976
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCN",
+    "iata": "KCM",
+    "city": "Kahramanmaraş",
+    "name": "Kahramanmaraş Airport",
+    "coords": {
+      "lat": 37.5388259888,
+      "lng": 36.9535217285
+    },
+    "runways": [
+      {
+        "id": "08/26",
+        "heading": 0,
+        "length_m": 2300
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCO",
+    "iata": "AJI",
+    "city": "Ağrı",
+    "name": "Ağrı Airport",
+    "coords": {
+      "lat": 39.655642,
+      "lng": 43.025742
+    },
+    "runways": [
+      {
+        "id": "16/34",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCP",
+    "iata": "ADF",
+    "city": "Adıyaman",
+    "name": "Adıyaman Airport",
+    "coords": {
+      "lat": 37.7314,
+      "lng": 38.468899
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 2485
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCR",
+    "iata": "MQM",
+    "city": "Mardin",
+    "name": "Mardin Airport",
+    "coords": {
+      "lat": 37.223300933800004,
+      "lng": 40.6316986084
+    },
+    "runways": [
+      {
+        "id": "03/21",
+        "heading": 0,
+        "length_m": 2501
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCS",
+    "iata": "GNY",
+    "city": "Şanlıurfa",
+    "name": "Şanlıurfa GAP Airport",
+    "coords": {
+      "lat": 37.445663,
+      "lng": 38.895592
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 4000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCT",
+    "iata": "IGD",
+    "city": "Iğdır",
+    "name": "Iğdır Airport",
+    "coords": {
+      "lat": 39.976627,
+      "lng": 43.876648
+    },
+    "runways": [
+      {
+        "id": "12/30",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCU",
+    "iata": "BGG",
+    "city": "Bingöl",
+    "name": "Bingöl Airport",
+    "coords": {
+      "lat": 38.860131,
+      "lng": 40.594489
+    },
+    "runways": [
+      {
+        "id": "11/29",
+        "heading": 0,
+        "length_m": 2300
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCV",
+    "iata": "NKT",
+    "city": "Şırnak",
+    "name": "Şırnak Şerafettin Elçi Airport",
+    "coords": {
+      "lat": 37.3647,
+      "lng": 42.0582
+    },
+    "runways": [
+      {
+        "id": "11/29",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTCW",
+    "iata": "YKO",
+    "city": "Hakkari",
+    "name": "Hakkari Yüksekova Airport",
+    "coords": {
+      "lat": 37.5497,
+      "lng": 44.2381
+    },
+    "runways": [
+      {
+        "id": "11/29",
+        "heading": 0,
+        "length_m": 3200
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTDA",
+    "iata": "HTY",
+    "city": "Antakya",
+    "name": "Hatay Airport",
+    "coords": {
+      "lat": 36.36079,
+      "lng": 36.285589
+    },
+    "runways": [
+      {
+        "id": "04/22",
+        "heading": 0,
+        "length_m": 2082
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTDB",
+    "iata": "COV",
+    "city": "Tarsus",
+    "name": "Çukurova International Airport",
+    "coords": {
+      "lat": 36.891478,
+      "lng": 35.071235
+    },
+    "runways": [
+      {
+        "id": "03L/21R",
+        "heading": 0,
+        "length_m": 3500
+      },
+      {
+        "id": "03R/21L",
+        "heading": 0,
+        "length_m": 3500
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFA",
+    "city": "Çiğli",
+    "name": "Kaklıç Airport",
+    "coords": {
+      "lat": 38.517601,
+      "lng": 26.9774
+    },
+    "runways": [
+      {
+        "id": "17/35",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFB",
+    "iata": "IZM",
+    "city": "Selçuk",
+    "name": "Selçuk Efes Airport",
+    "coords": {
+      "lat": 37.950699,
+      "lng": 27.329
+    },
+    "runways": [
+      {
+        "id": "09/27",
+        "heading": 0,
+        "length_m": 1570
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFC",
+    "iata": "ISE",
+    "city": "Isparta",
+    "name": "Süleyman Demirel International Airport",
+    "coords": {
+      "lat": 37.8554,
+      "lng": 30.368401
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFD",
+    "iata": "EDO",
+    "city": "Edremit",
+    "name": "Balıkesir Koca Seyit Airport",
+    "coords": {
+      "lat": 39.552533,
+      "lng": 27.010192
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFE",
+    "iata": "BJV",
+    "city": "Bodrum",
+    "name": "Milas Bodrum International Airport",
+    "coords": {
+      "lat": 37.249314,
+      "lng": 27.66401
+    },
+    "runways": [
+      {
+        "id": "10L/28R",
+        "heading": 0,
+        "length_m": 3000
+      },
+      {
+        "id": "10R/28L",
+        "heading": 0,
+        "length_m": 2940
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFG",
+    "iata": "GZP",
+    "city": "Gazipaşa",
+    "name": "Gazipaşa-Alanya Airport",
+    "coords": {
+      "lat": 36.298832,
+      "lng": 32.297017
+    },
+    "runways": [
+      {
+        "id": "08/26",
+        "heading": 0,
+        "length_m": 2350
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFH",
+    "iata": "SZF",
+    "city": "Samsun",
+    "name": "Samsun-Çarşamba Airport",
+    "coords": {
+      "lat": 41.253988,
+      "lng": 36.567546
+    },
+    "runways": [
+      {
+        "id": "13/31",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFJ",
+    "iata": "SAW",
+    "city": "Pendik, Istanbul",
+    "name": "Istanbul Sabiha Gökçen International Airport",
+    "coords": {
+      "lat": 40.898602,
+      "lng": 29.3092
+    },
+    "runways": [
+      {
+        "id": "06L/24R",
+        "heading": 0,
+        "length_m": 3000
+      },
+      {
+        "id": "06R/24L",
+        "heading": 0,
+        "length_m": 3540
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFK",
+    "iata": "GKD",
+    "city": "Gökçeada",
+    "name": "Gökçeada Airport",
+    "coords": {
+      "lat": 40.204498,
+      "lng": 25.883302
+    },
+    "runways": [
+      {
+        "id": "01/19",
+        "heading": 0,
+        "length_m": 2149
+      },
+      {
+        "id": "02/20",
+        "heading": 0,
+        "length_m": 1193
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFM",
+    "iata": "IST",
+    "city": "Istanbul",
+    "name": "İstanbul Airport",
+    "coords": {
+      "lat": 41.274874,
+      "lng": 28.732136
+    },
+    "runways": [
+      {
+        "id": "16L/34R",
+        "heading": 0,
+        "length_m": 3750
+      },
+      {
+        "id": "16R/34L",
+        "heading": 0,
+        "length_m": 3750
+      },
+      {
+        "id": "17L/35R",
+        "heading": 0,
+        "length_m": 4100
+      },
+      {
+        "id": "17R/35L",
+        "heading": 0,
+        "length_m": 4100
+      },
+      {
+        "id": "18/36",
+        "heading": 0,
+        "length_m": 3060
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFO",
+    "iata": "RZV",
+    "city": "Rize",
+    "name": "Rize–Artvin Airport",
+    "coords": {
+      "lat": 41.179766,
+      "lng": 40.848802
+    },
+    "runways": [
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "TR-0041",
+    "city": "Bergama",
+    "name": "Fly Pergamon Sport Airfield",
+    "coords": {
+      "lat": 39.092842,
+      "lng": 27.148651
+    },
+    "runways": [
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 270
+      }
+    ],
+    "crossLimit": 15
+  }
+]

@@ -1,0 +1,48 @@
+[
+  {
+    "icao": "LTFM",
+    "iata": "IST",
+    "city": "Istanbul",
+    "name": "Istanbul Airport",
+    "coords": { "lat": 41.275, "lng": 28.751 },
+    "runways": [
+      { "id": "17L/35R", "heading": 350, "length_m": 4100 },
+      { "id": "17R/35L", "heading": 350, "length_m": 4100 }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTBA",
+    "iata": "ISL",
+    "city": "Istanbul",
+    "name": "Ataturk (GA)",
+    "coords": { "lat": 40.976, "lng": 28.814 },
+    "runways": [
+      { "id": "05/23", "heading": 230, "length_m": 3000 }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTFJ",
+    "iata": "SAW",
+    "city": "Istanbul",
+    "name": "Sabiha Gokcen",
+    "coords": { "lat": 40.904, "lng": 29.309 },
+    "runways": [
+      { "id": "06/24", "heading": 240, "length_m": 3000 }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "LTAC",
+    "iata": "ESB",
+    "city": "Ankara",
+    "name": "Esenboga",
+    "coords": { "lat": 40.128, "lng": 32.995 },
+    "runways": [
+      { "id": "03/21", "heading": 30, "length_m": 3750 },
+      { "id": "03L/21R", "heading": 30, "length_m": 3750 }
+    ],
+    "crossLimit": 15
+  }
+]

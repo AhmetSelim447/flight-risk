@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { 
+  height: 100%;
+  width: 100%;
+ }
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* Wind marker */
+.leaflet-wind {
+  width: 0;
+  height: 0;
+  position: relative;
+  /* ok gövdesi */
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 22px solid rgba(59, 130, 246, 0.95); /* mavi ok ucu */
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.7));
+  transform-origin: 50% 80%;
+}
+.leaflet-wind::after {
+  /* kuyruk */
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: -1px;
+  width: 2px;
+  height: 18px;
+  background: rgba(59, 130, 246, 0.9);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+}
+.leaflet-wind-label {
+  position: absolute;
+  top: 42px;
+  left: -16px;
+  min-width: 32px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e5f1ff;
+  background: rgba(17, 24, 39, 0.9); /* zinc-900-ish */
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 6px;
+  padding: 2px 4px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6));
+  user-select: none;
+  pointer-events: none;
+}
