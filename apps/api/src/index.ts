@@ -1,10 +1,12 @@
 // apps/api/src/index.ts
+import "./lib/env";
 import express from "express";
 import cors from "cors";
 import PDFDocument from "pdfkit";
 
 import fs from "fs";
 import path from "path";
+import net from "net";
 
 // ✅ Swagger UI
 import swaggerUi from "swagger-ui-express";
@@ -42,12 +44,446 @@ app.use(requestTimeout(15_000));
 /* ================= Swagger Spec (NO JSDOC PARSE) ================= */
 type OpenApiDoc = Record<string, any>;
 
+type AiRiskPrediction = {
+  mlScore: number;
+  ruleScore: number;
+  notamSemanticScore: number;
+  finalScore: number;
+  riskClass: "green" | "yellow" | "red";
+  weatherAssessment?: {
+    score: number;
+    trainedScore?: number | null;
+    heuristicScore?: number;
+    floorScore?: number;
+    floorApplied?: boolean;
+    floorReasons?: string[];
+    categories?: {
+      key: string;
+      label: string;
+      status: string;
+      detail: string;
+      present: boolean;
+      score: number;
+    }[];
+  };
+  confidence: {
+    level: "high" | "medium" | "low";
+    score: number;
+    summary: string;
+    factors: string[];
+  };
+  drivers: string[];
+  modelVersion: string;
+  limitedAdjustment: {
+    applied: boolean;
+    fromClass: string;
+    toClass: string;
+    reason: string;
+  };
+};
+
+type AiNotamAnalysis = {
+  raw: string;
+  severity: "Critical" | "Medium" | "Info";
+  impacts: string[];
+  summary: string;
+  operationalImpact: string;
+  score: number;
+};
+
+type AiBriefReport = {
+  summary: string;
+  riskInterpretation: string;
+  notamImpacts: string[];
+  weatherConcerns: string[];
+  windConcerns: string[];
+  alternateCommentary: string;
+  confidenceNote: string;
+  limitedAdjustment: string;
+};
+
+function aiServiceUrl() {
+  return String(
+    process.env.AI_SERVICE_URL ||
+      process.env.NLP_SERVICE_URL ||
+      "http://localhost:8000"
+  ).replace(/\/+$/, "");
+}
+
+async function postAiJson<T>(
+  pathName: string,
+  body: unknown,
+  timeoutMs = Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 2500)
+): Promise<T | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  try {
+    const r = await fetch(`${aiServiceUrl()}${pathName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+
+    if (!r.ok) return null;
+    return (await r.json()) as T;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function parseAiNotams(items: any[]): Promise<AiNotamAnalysis[]> {
+  if (!Array.isArray(items) || items.length === 0) return [];
+
+  const parsed = await postAiJson<AiNotamAnalysis[]>("/ai/notam/parse", {
+    items: items.map((n) => ({
+      id: n?.id,
+      text: n?.text ?? n?.raw,
+      raw: n?.raw ?? n?.text,
+      critical: Boolean(n?.critical),
+    })),
+  });
+
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function safeReadJson(filePath: string): any | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function workspaceRoot() {
+  const cwd = process.cwd();
+  if (path.basename(cwd) === "api" && path.basename(path.dirname(cwd)) === "apps") {
+    return path.resolve(cwd, "..", "..");
+  }
+  return cwd;
+}
+
+function dataPath(...parts: string[]) {
+  return path.join(workspaceRoot(), "data", ...parts);
+}
+
+function feedbackFilePath() {
+  return dataPath("feedback", "brief_feedback.jsonl");
+}
+
+function briefQueryLogPath() {
+  return dataPath("logs", "brief_queries.jsonl");
+}
+
+function compactMetReport(report: any) {
+  if (!report) {
+    return {
+      present: false,
+      providerName: null,
+      source: null,
+      fallbackUsed: false,
+      stale: false,
+      raw: null,
+    };
+  }
+
+  return {
+    present: Boolean(report.raw),
+    providerName: report.providerName ?? null,
+    source: report.source ?? null,
+    fallbackUsed: Boolean(report.fallbackUsed),
+    stale: Boolean(report.stale),
+    fetchedAt: report.fetchedAt ?? null,
+    raw: report.raw ?? null,
+    parsed: report.parsed ?? null,
+  };
+}
+
+function compactNotamList(items: any[]) {
+  const list = Array.isArray(items) ? items : [];
+  return {
+    count: list.length,
+    syntheticCount: list.filter((n) => n?.synthetic).length,
+    liveCount: list.filter((n) => n && n.synthetic === false).length,
+    criticalCount: list.filter((n) => n?.critical || n?.event?.critical).length,
+    ids: list.map((n) => String(n?.id ?? n?.event?.key ?? "NOTAM")).slice(0, 20),
+    items: list,
+  };
+}
+
+function buildBriefLogItem(input: {
+  dep: string;
+  arr: string;
+  crossLimit?: number;
+  req: express.Request;
+  durationMs: number;
+  brief?: any;
+  error?: string;
+}) {
+  const brief = input.brief;
+  const depMet = brief?.met?.dep?.[0];
+  const arrMet = brief?.met?.arr?.[0];
+  const depTaf = brief?.taf?.dep?.[0];
+  const arrTaf = brief?.taf?.arr?.[0];
+  const depNotam = Array.isArray(brief?.notam?.dep) ? brief.notam.dep : [];
+  const arrNotam = Array.isArray(brief?.notam?.arr) ? brief.notam.arr : [];
+
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+    status: input.error ? "error" : "success",
+    durationMs: input.durationMs,
+    request: {
+      dep: input.dep,
+      arr: input.arr,
+      crossLimit: input.crossLimit ?? null,
+      query: input.req.query,
+      ip: input.req.ip,
+      userAgent: input.req.get("user-agent") ?? null,
+    },
+    summary: input.error
+      ? {
+          error: input.error,
+        }
+      : {
+          route: `${brief?.airports?.dep?.icao ?? input.dep}-${brief?.airports?.arr?.icao ?? input.arr}`,
+          risk: {
+            score: brief?.risk?.score,
+            class: brief?.risk?.class,
+            primaryDriver: brief?.risk?.primary_driver,
+            reasons: brief?.risk?.reasons ?? [],
+            breakdown: brief?.risk?.breakdown,
+            confidence: brief?.risk?.confidence,
+            ml: brief?.risk?.ml,
+          },
+          providers: {
+            depMet: compactMetReport(depMet),
+            arrMet: compactMetReport(arrMet),
+            depTaf: compactMetReport(depTaf),
+            arrTaf: compactMetReport(arrTaf),
+            notamProvider: process.env.NOTAM_PROVIDER || "simulated",
+            notamSyntheticMode: process.env.NOTAM_SYNTHETIC_MODE || "deterministic",
+          },
+          notams: {
+            dep: compactNotamList(depNotam),
+            arr: compactNotamList(arrNotam),
+          },
+          aiReport: brief?.aiReport ?? null,
+        },
+    result: brief ?? null,
+    error: input.error ?? null,
+  };
+}
+
+function appendBriefQueryLog(item: any) {
+  const file = briefQueryLogPath();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, `${JSON.stringify(item)}\n`, "utf-8");
+}
+
+function readBriefQueryLogs(limit = 50) {
+  const file = briefQueryLogPath();
+  if (!fs.existsSync(file)) {
+    return {
+      path: file,
+      count: 0,
+      items: [] as any[],
+    };
+  }
+
+  const lines = fs
+    .readFileSync(file, "utf-8")
+    .split(/\r?\n/)
+    .filter(Boolean);
+
+  const items: any[] = [];
+  for (const line of lines.slice(-Math.max(1, Math.min(500, limit)))) {
+    try {
+      items.push(JSON.parse(line));
+    } catch {
+      // ignore malformed local log lines
+    }
+  }
+
+  return {
+    path: file,
+    count: lines.length,
+    items: items.reverse(),
+  };
+}
+
+function summarizeFeedback() {
+  const file = feedbackFilePath();
+  const summary = {
+    count: 0,
+    byVerdict: {} as Record<string, number>,
+    latest: [] as any[],
+  };
+
+  if (!fs.existsSync(file)) return summary;
+
+  const lines = fs
+    .readFileSync(file, "utf-8")
+    .split(/\r?\n/)
+    .filter(Boolean);
+
+  const latest: any[] = [];
+  for (const line of lines) {
+    try {
+      const item = JSON.parse(line);
+      const verdict = String(item.verdict || "unknown");
+      summary.count += 1;
+      summary.byVerdict[verdict] = (summary.byVerdict[verdict] || 0) + 1;
+      latest.push(item);
+    } catch {
+      // ignore malformed local feedback lines
+    }
+  }
+
+  summary.latest = latest.slice(-10).reverse();
+  return summary;
+}
+
+function summarizeLiveSnapshots() {
+  const livePath = dataPath("raw", "live");
+  const empty = {
+    path: livePath,
+    exists: false,
+    fileCount: 0,
+    latestFile: null as string | null,
+    latestUpdatedAt: null as string | null,
+    latestTafFile: null as string | null,
+    latestTafUpdatedAt: null as string | null,
+    latestTafRecords: 0,
+    latestTafStations: [] as string[],
+  };
+
+  if (!fs.existsSync(livePath)) return empty;
+
+  const files = fs
+    .readdirSync(livePath)
+    .filter((name) => name.toLowerCase().endsWith(".jsonl"))
+    .map((name) => {
+      const filePath = path.join(livePath, name);
+      const stat = fs.statSync(filePath);
+      return { name, filePath, mtimeMs: stat.mtimeMs, updatedAt: stat.mtime.toISOString() };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  const latest = files[0];
+  let latestTaf = files.find((file) => {
+    try {
+      const firstLine = fs.readFileSync(file.filePath, "utf-8").split(/\r?\n/).find(Boolean);
+      if (!firstLine) return false;
+      const item = JSON.parse(firstLine);
+      return String(item?.kind || "").toLowerCase() === "taf";
+    } catch {
+      return false;
+    }
+  });
+
+  latestTaf = latestTaf ?? latest;
+
+  const tafStations = new Set<string>();
+  let tafRecords = 0;
+  if (latestTaf) {
+    try {
+      const lines = fs.readFileSync(latestTaf.filePath, "utf-8").split(/\r?\n/).filter(Boolean);
+      for (const line of lines) {
+        try {
+          const item = JSON.parse(line);
+          if (String(item?.kind || "").toLowerCase() !== "taf") continue;
+          tafRecords += 1;
+          if (item?.station) tafStations.add(String(item.station).toUpperCase());
+        } catch {
+          // ignore malformed local snapshot line
+        }
+      }
+    } catch {
+      // ignore read errors for dashboard status
+    }
+  }
+
+  return {
+    ...empty,
+    exists: true,
+    fileCount: files.length,
+    latestFile: latest?.name ?? null,
+    latestUpdatedAt: latest?.updatedAt ?? null,
+    latestTafFile: latestTaf?.name ?? null,
+    latestTafUpdatedAt: latestTaf?.updatedAt ?? null,
+    latestTafRecords: tafRecords,
+    latestTafStations: Array.from(tafStations).sort(),
+  };
+}
+
+function buildModelStatus() {
+  const modelPath = path.join(workspaceRoot(), "services", "nlp", "models", "risk_model.json");
+  const evaluationPath = dataPath("processed", "evaluation.json");
+  const datasetPath = dataPath("processed", "risk_dataset.csv");
+  const model = safeReadJson(modelPath);
+  const evaluation = safeReadJson(evaluationPath);
+
+  return {
+    model: model
+      ? {
+          loaded: true,
+          path: modelPath,
+          modelVersion: model.modelVersion,
+          createdAt: model.createdAt,
+          targetColumn: model.targetColumn,
+          classes: model.classes,
+          featureColumns: model.featureColumns,
+          scoreMapping: model.scoreMapping,
+          labelDefinition: model.labelDefinition,
+          metrics: model.metrics,
+        }
+      : {
+          loaded: false,
+          path: modelPath,
+        },
+    evaluation: evaluation
+      ? {
+          path: evaluationPath,
+          createdAt: evaluation.createdAt,
+          targetColumn: evaluation.targetColumn,
+          splits: evaluation.splits,
+          evaluations: evaluation.evaluations,
+        }
+      : {
+          path: evaluationPath,
+          available: false,
+        },
+    dataset: {
+      path: datasetPath,
+      exists: fs.existsSync(datasetPath),
+      bytes: fs.existsSync(datasetPath) ? fs.statSync(datasetPath).size : 0,
+      updatedAt: fs.existsSync(datasetPath)
+        ? fs.statSync(datasetPath).mtime.toISOString()
+        : null,
+    },
+    feedback: summarizeFeedback(),
+    snapshots: summarizeLiveSnapshots(),
+    providers: {
+      metProvider: process.env.MET_PROVIDER || "auto",
+      notamProvider: process.env.NOTAM_PROVIDER || "simulated",
+      notamSyntheticMode: process.env.NOTAM_SYNTHETIC_MODE || "deterministic",
+      aiServiceUrl: aiServiceUrl(),
+    },
+  };
+}
+
 const openapi: OpenApiDoc = {
   openapi: "3.0.0",
   info: {
     title: "Flight-Risk API",
     version: "1.0.0",
-    description: "METAR/TAF/NOTAM + risk scoring + airports search/near + PDF brief endpoints",
+    description:
+      "METAR/TAF provider chain + synthetic/live NOTAM support + hybrid AI risk scoring + airports search/near + PDF brief endpoints. metar-taf.com is not used as a production data source.",
   },
   servers: [{ url: "http://localhost:4000" }],
   paths: {
@@ -212,6 +648,27 @@ const openapi: OpenApiDoc = {
           },
           "400": { description: "Bad request" },
         },
+      },
+    },
+    "/model/status": {
+      get: {
+        summary: "Get trained model, validation, dataset, and feedback status",
+        responses: { "200": { description: "Model status" } },
+      },
+    },
+    "/feedback": {
+      post: {
+        summary: "Store local briefing feedback for future calibration",
+        responses: {
+          "200": { description: "Feedback saved" },
+          "400": { description: "Invalid feedback verdict" },
+        },
+      },
+    },
+    "/feedback/summary": {
+      get: {
+        summary: "Get local feedback summary",
+        responses: { "200": { description: "Feedback summary" } },
       },
     },
     "/openapi.json": {
@@ -746,6 +1203,10 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
   const [mDep, mArr] = await Promise.all([getMetar(dep.icao), getMetar(arr.icao)]);
   const [tDep, tArr] = await Promise.all([getTaf(dep.icao), getTaf(arr.icao)]);
   const [nDep, nArr] = await Promise.all([getNotam(dep.icao), getNotam(arr.icao)]);
+  const [aiDepNotams, aiArrNotams] = await Promise.all([
+    parseAiNotams(nDep ?? []),
+    parseAiNotams(nArr ?? []),
+  ]);
 
   const depCriticalNotamCount = nDep?.filter((n: any) => n.critical).length || 0;
   const arrCriticalNotamCount = nArr?.filter((n: any) => n.critical).length || 0;
@@ -944,8 +1405,8 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
     reasons.push("Kritik NOTAM yoğunluğu operasyonel baskı oluşturuyor");
   }
 
-  if (!dep.coords) throw new Error(`coords missing for DEP ${dep.icao}`);
-  const depPos = dep.coords;
+  if (!arr.coords) throw new Error(`coords missing for ARR ${arr.icao}`);
+  const alternateCenter = arr.coords;
 
   const list = getAirports();
 
@@ -955,7 +1416,7 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
       airport: a,
       icao: a.icao,
       name: a.name,
-      dist_km: haversineKm(depPos, a.coords!),
+      dist_km: haversineKm(alternateCenter, a.coords!),
       best_rwy_m: Math.max(...(a.runways || []).map((r) => r.length_m || 0), 0),
     }))
     .filter((x) => x.dist_km <= 200)
@@ -1041,6 +1502,89 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
 
   const candidates = topAlternateRanked.map((x) => `${x.icao} (${x.dist_km.toFixed(0)} km)`);
 
+  const aiRisk = await postAiJson<AiRiskPrediction>("/ai/risk/predict", {
+    ruleScore: riskFinal.score,
+    depMet: mDep,
+    arrMet: mArr,
+    depTaf: tDep,
+    arrTaf: tArr,
+    depAirport: dep,
+    arrAirport: arr,
+    activeRunway: depActive,
+    wind: {
+      headwind: wcDep.head,
+      crosswind: wcDep.cross,
+      crossLimit: chosenCrossLimit,
+    },
+    notams: {
+      dep: nDep ?? [],
+      arr: nArr ?? [],
+    },
+    confidence,
+  });
+
+  const ml = aiRisk
+    ? {
+        mlScore: aiRisk.mlScore,
+        ruleScore: aiRisk.ruleScore,
+        finalScore: aiRisk.finalScore,
+        notamSemanticScore: aiRisk.notamSemanticScore,
+        weatherAssessment: aiRisk.weatherAssessment,
+        confidence: aiRisk.confidence,
+        drivers: aiRisk.drivers,
+        modelVersion: aiRisk.modelVersion,
+        limitedAdjustment: aiRisk.limitedAdjustment,
+      }
+    : {
+        mlScore: riskFinal.score,
+        ruleScore: riskFinal.score,
+        finalScore: riskFinal.score,
+        notamSemanticScore: notamCriticalCount > 0 ? Math.min(100, notamCriticalCount * 18) : 0,
+        weatherAssessment: undefined,
+        confidence: {
+          level: "low",
+          score: Math.min(confidence.score, 55),
+          summary: "AI servisi kullanılamadı; kural tabanlı risk skoru gösteriliyor.",
+          factors: ["AI servis fallback"],
+        },
+        drivers: [primaryDriver],
+        modelVersion: "rule-fallback",
+        limitedAdjustment: {
+          applied: false,
+          fromClass: riskFinal.class,
+          toClass: riskFinal.class,
+          reason: "AI servisi kullanılamadı; skor değiştirilmedi.",
+        },
+      };
+
+  const aiScore = aiRisk?.finalScore ?? riskFinal.score;
+  const aiClass = aiRisk?.riskClass ?? riskFinal.class;
+  const aiConfidence = aiRisk?.confidence ?? confidence;
+  const aiPrimaryDriver = aiRisk?.drivers?.[0] ?? primaryDriver;
+
+  const aiReport = await postAiJson<AiBriefReport>("/ai/brief/report", {
+    brief: {
+      airports: { dep, arr },
+      met: { dep: mDep ? [mDep] : [], arr: mArr ? [mArr] : [] },
+      taf: { dep: tDep ? [tDep] : [], arr: tArr ? [tArr] : [] },
+      notam: { dep: nDep ?? [], arr: nArr ?? [] },
+      risk: {
+        ...riskFinal,
+        score: aiScore,
+        class: aiClass,
+        headwind: wcDep.head,
+        crosswind: wcDep.cross,
+        confidence: aiConfidence,
+        primary_driver: aiPrimaryDriver,
+        alternate_compare: alternateCompare,
+        reasons,
+        alternates: candidates,
+      },
+    },
+    riskPrediction: aiRisk,
+    notamAnalysis: { dep: aiDepNotams, arr: aiArrNotams },
+  });
+
   return {
     airports: {
       dep: {
@@ -1064,15 +1608,33 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
     met: { dep: mDep ? [mDep] : [], arr: mArr ? [mArr] : [] },
     taf: { dep: tDep ? [tDep] : [], arr: tArr ? [tArr] : [] },
     notam: { dep: nDep ?? [], arr: nArr ?? [] },
+    aiNotamAnalysis: { dep: aiDepNotams, arr: aiArrNotams },
+    aiReport: aiReport ?? {
+      summary: "AI raporu oluşturulamadı; mevcut briefing verileri gösteriliyor.",
+      riskInterpretation: "Kural tabanlı risk sonucu korunuyor.",
+      notamImpacts: [],
+      weatherConcerns: [],
+      windConcerns: [],
+      alternateCommentary: "",
+      confidenceNote: "AI servis fallback.",
+      limitedAdjustment: "Sınırlı düzeltme uygulanmadı.",
+    },
         risk: {
       ...riskFinal,
+      score: aiScore,
+      class: aiClass,
+      breakdown: {
+        ...riskFinal.breakdown,
+        total: aiScore,
+      },
       headwind: wcDep.head,
       crosswind: wcDep.cross,
-      confidence,
-      primary_driver: primaryDriver,
+      confidence: aiConfidence,
+      primary_driver: aiPrimaryDriver,
       alternate_compare: alternateCompare,
       reasons,
       alternates: candidates,
+      ml,
       alternateDetails: topAlternateRanked.map((x) => ({
         icao: x.icao,
         name: x.name,
@@ -1100,6 +1662,77 @@ app.get("/health", async (_req, res) => {
     source: getAirportsSource(),
     loadedAt: getAirportsLoadedAt(),
   });
+});
+
+app.get("/model/status", (_req, res) => {
+  res.json(buildModelStatus());
+});
+
+app.get("/feedback/summary", (_req, res) => {
+  res.json(summarizeFeedback());
+});
+
+app.get("/brief/logs", (req, res) => {
+  const limit = Number(req.query.limit ?? 50);
+  res.json(readBriefQueryLogs(Number.isFinite(limit) ? limit : 50));
+});
+
+app.get("/brief/logs/latest", (_req, res) => {
+  const logs = readBriefQueryLogs(1);
+  res.json({
+    path: logs.path,
+    item: logs.items[0] ?? null,
+  });
+});
+
+app.post("/feedback", (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const verdict = String(body.verdict ?? "").trim();
+    const allowed = new Set(["correct", "too_conservative", "missed_risk", "wrong_reason"]);
+    if (!allowed.has(verdict)) {
+      return res.status(400).json({ ok: false, error: "Invalid feedback verdict" });
+    }
+
+    const brief = body.brief ?? {};
+    const route = {
+      dep: String(body.dep ?? brief?.airports?.dep?.icao ?? "").toUpperCase(),
+      arr: String(body.arr ?? brief?.airports?.arr?.icao ?? "").toUpperCase(),
+    };
+
+    const item = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      verdict,
+      note: String(body.note ?? "").slice(0, 1000),
+      route,
+      risk: {
+        score: brief?.risk?.score,
+        class: brief?.risk?.class,
+        ml: brief?.risk?.ml,
+        reasons: brief?.risk?.reasons,
+      },
+      met: {
+        dep: brief?.met?.dep?.[0]?.raw,
+        arr: brief?.met?.arr?.[0]?.raw,
+      },
+      taf: {
+        dep: brief?.taf?.dep?.[0]?.raw,
+        arr: brief?.taf?.arr?.[0]?.raw,
+      },
+      notamCounts: {
+        dep: Array.isArray(brief?.notam?.dep) ? brief.notam.dep.length : 0,
+        arr: Array.isArray(brief?.notam?.arr) ? brief.notam.arr.length : 0,
+      },
+    };
+
+    const file = feedbackFilePath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${JSON.stringify(item)}\n`, "utf-8");
+    return res.json({ ok: true, item, summary: summarizeFeedback() });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e?.message || "Feedback write failed" });
+  }
 });
 
 app.get("/airports/search", async (req, res) => {
@@ -1194,13 +1827,42 @@ app.get("/traffic", async (req, res) => {
 });
 
 app.get("/brief", async (req, res) => {
+  const startedAt = Date.now();
+  const dep = String(req.query.dep ?? "").toUpperCase();
+  const arr = String(req.query.arr ?? "").toUpperCase();
+  const cl = Number(req.query.crossLimit);
   try {
-    const dep = String(req.query.dep ?? "").toUpperCase();
-    const arr = String(req.query.arr ?? "").toUpperCase();
-    const cl = Number(req.query.crossLimit);
     const brief = await buildBrief(dep, arr, { crossLimit: Number.isFinite(cl) ? cl : undefined });
+    try {
+      appendBriefQueryLog(
+        buildBriefLogItem({
+          dep,
+          arr,
+          crossLimit: Number.isFinite(cl) ? cl : undefined,
+          req,
+          durationMs: Date.now() - startedAt,
+          brief,
+        })
+      );
+    } catch (logError) {
+      console.warn("[brief.log] write failed:", logError);
+    }
     res.json(brief);
   } catch (e: any) {
+    try {
+      appendBriefQueryLog(
+        buildBriefLogItem({
+          dep,
+          arr,
+          crossLimit: Number.isFinite(cl) ? cl : undefined,
+          req,
+          durationMs: Date.now() - startedAt,
+          error: e?.message || "failed",
+        })
+      );
+    } catch (logError) {
+      console.warn("[brief.log] error write failed:", logError);
+    }
     res.status(400).json({ error: e?.message || "failed" });
   }
 });
@@ -1611,6 +2273,84 @@ if (confidence) {
   }
 }
 
+const aiReport = (brief as any)?.aiReport;
+const ml = (brief.risk as any)?.ml;
+
+if (aiReport) {
+  pdfSectionTitle(doc, "AI Degerlendirme");
+
+  if (ml) {
+    pdfKeyValue(
+      doc,
+      "Hybrid Score",
+      `ML ${ml.mlScore ?? "-"} - Rule ${ml.ruleScore ?? "-"} - NOTAM ${ml.notamSemanticScore ?? "-"} - Final ${ml.finalScore ?? brief.risk.score}`
+    );
+    pdfKeyValue(doc, "Model", String(ml.modelVersion ?? "-"));
+
+    const weatherAssessment = ml.weatherAssessment;
+    if (weatherAssessment) {
+      pdfKeyValue(
+        doc,
+        "METAR Weather",
+        `Score ${weatherAssessment.score ?? "-"} - Trained ${weatherAssessment.trainedScore ?? "-"} - Heuristic ${weatherAssessment.heuristicScore ?? "-"} - Guardrail ${weatherAssessment.floorScore ?? 0}`
+      );
+
+      if (weatherAssessment.floorApplied) {
+        pdfKeyValue(
+          doc,
+          "Guardrail",
+          `Applied: ${(weatherAssessment.floorReasons ?? []).join(", ") || "reason not provided"}`
+        );
+      }
+
+      if (Array.isArray(weatherAssessment.categories) && weatherAssessment.categories.length > 0) {
+        useBold();
+        doc.moveDown(0.3);
+        doc.fontSize(11).fillColor("#0f172a").text("METAR Weather Categories");
+        useRegular();
+        pdfBulletList(
+          doc,
+          weatherAssessment.categories
+            .filter((x: any) => x.status === "high" || x.status === "watch" || x.status === "missing")
+            .map((x: any) => `${x.label}: ${x.status} - ${x.detail}`),
+          { emptyText: "- Weather guardrail category yok", limit: 8 }
+        );
+      }
+    }
+  }
+
+  if (aiReport.summary) {
+    pdfKeyValue(doc, "Ozet", String(aiReport.summary));
+  }
+
+  if (aiReport.riskInterpretation) {
+    pdfKeyValue(doc, "Yorum", String(aiReport.riskInterpretation));
+  }
+
+  if (Array.isArray(aiReport.notamImpacts) && aiReport.notamImpacts.length > 0) {
+    useBold();
+    doc.moveDown(0.3);
+    doc.fontSize(11).fillColor("#0f172a").text("AI NOTAM Etkileri");
+    useRegular();
+    pdfBulletList(
+      doc,
+      aiReport.notamImpacts.map((x: unknown) => String(x)),
+      { emptyText: "- Belirgin AI NOTAM etkisi yok", limit: 4 }
+    );
+  }
+
+  if (aiReport.limitedAdjustment) {
+    pdfKeyValue(doc, "Sinirli Duzeltme", String(aiReport.limitedAdjustment));
+  }
+
+  useRegular();
+  ensurePdfRoom(doc, 18);
+  doc
+    .fontSize(9)
+    .fillColor("#64748b")
+    .text("AI degerlendirme karar destek amaclidir; operasyonel otorite yerine gecmez.");
+}
+
 useBold();
 doc.moveDown(0.4);
 doc.fontSize(11).fillColor("#0f172a").text("Ana Nedenler");
@@ -1766,18 +2506,71 @@ pdfBulletList(doc, (brief.risk.reasons ?? []).map((x: string) => x), {
 
 
 /* ================= bootstrap ================= */
+function canBindPort(port: number) {
+  return new Promise<boolean>((resolve) => {
+    const probe = net.createServer();
+
+    probe.once("error", (e: NodeJS.ErrnoException) => {
+      resolve(e.code !== "EADDRINUSE");
+    });
+
+    probe.once("listening", () => {
+      probe.close(() => resolve(true));
+    });
+
+    probe.listen(port);
+  });
+}
+
+function isPortListening(port: number) {
+  return new Promise<boolean>((resolve) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port });
+    const done = (value: boolean) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(value);
+    };
+
+    socket.setTimeout(500);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+}
+
 async function start() {
+  const PORT = Number(process.env.PORT ?? 4000);
+
+  if ((await isPortListening(PORT)) || !(await canBindPort(PORT))) {
+    console.log(
+      `[start] Port ${PORT} is already in use; skipping duplicate API startup. ` +
+        `Use the existing API at http://localhost:${PORT}.`
+    );
+    return;
+  }
+
   await ensureAirportsReady();
 
   const count = getAirports().length;
   const source = getAirportsSource();
   const loadedAt = getAirportsLoadedAt();
-  const PORT = Number(process.env.PORT ?? 4000);
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`API on http://localhost:${PORT} | airports loaded: ${count} (source: ${source}) loadedAt=${loadedAt}`);
     console.log(`Swagger UI: http://localhost:${PORT}/docs`);
     console.log(`OpenAPI JSON: http://localhost:${PORT}/openapi.json`);
+  });
+
+  server.on("error", (e: NodeJS.ErrnoException) => {
+    if (e.code === "EADDRINUSE") {
+      console.error(
+        `[start] Port ${PORT} is already in use. Another Flight Risk API is probably already running. ` +
+          `Close the duplicate terminal or use the existing API at http://localhost:${PORT}.`
+      );
+      process.exit(0);
+      return;
+    }
+    throw e;
   });
 }
 

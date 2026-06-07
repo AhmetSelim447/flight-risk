@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { searchAirports, AirportRow } from "../lib/api";
+import { useEffect, useRef, useState } from "react";
+import { searchAirports, type AirportRow } from "../lib/api";
 
 type Props = {
   label: string;
@@ -16,6 +16,10 @@ export default function SearchBox({ label, placeholder, value, onSelect }: Props
   const abortRef = useRef<AbortController | null>(null);
 
   const debouncedQ = useDebounced(q, 250);
+
+  useEffect(() => {
+    if (value) setQ(`${value.icao} ${value.name || ""}`.trim());
+  }, [value]);
 
   useEffect(() => {
     if (!debouncedQ) { setList([]); return; }

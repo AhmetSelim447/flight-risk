@@ -206,7 +206,6 @@ export default function MapPage() {
       popupAnchor: [1, -34],
       shadowSize: [41, 41],
     });
-    // @ts-expect-error override
     L.Marker.prototype.options.icon = DefaultIcon;
 
     const map = L.map(mapEl.current, {
@@ -286,7 +285,7 @@ export default function MapPage() {
       if (typeof detail?.dist_km === "number") metaBits.push(`Mesafe: ${detail.dist_km} km`);
       if (typeof detail?.best_rwy_m === "number") metaBits.push(`Pist: ${detail.best_rwy_m} m`);
       if (typeof detail?.critical_notams === "number") metaBits.push(`Kritik NOTAM: ${detail.critical_notams}`);
-      if (typeof detail?.crosswind_abs === "number") metaBits.push(`Crosswind: ${detail.crosswind_abs} kt`);
+      if (typeof detail?.crosswind_abs === "number") metaBits.push(`Yan rüzgar: ${detail.crosswind_abs} kt`);
 
       const weatherChips: string[] = [];
       if (detail?.weather_label) weatherChips.push(formatAltPopupBadge(detail.weather_label, "sky"));
@@ -967,9 +966,7 @@ export default function MapPage() {
     const wIcon0 = windArrow(windDir, Number.isFinite(Number(disp0.val)) ? Number(disp0.val) : undefined, disp0.unit);
     if (wIcon0) layerRef.current.wind = L.marker(dep, { icon: wIcon0 }).addTo(map);
 
-    const initialLayers = [layerRef.current.dep, layerRef.current.arr, layerRef.current.route, layerRef.current.rwy, layerRef.current.wind].filter(
-      (l): l is L.Layer => !!l
-    );
+    const initialLayers = [layerRef.current.dep, layerRef.current.arr, layerRef.current.route, layerRef.current.rwy, layerRef.current.wind].filter(Boolean) as L.Layer[];
     if (initialLayers.length) {
       const group = L.featureGroup(initialLayers);
       map.fitBounds(group.getBounds(), { padding: [30, 30] });
@@ -984,9 +981,7 @@ export default function MapPage() {
     scheduleTrafficRefresh(300);
 
     function fitBoundsIncluding(extra?: L.Layer, opts?: { includeNear?: boolean }) {
-      const base = [layerRef.current.dep, layerRef.current.arr, layerRef.current.route, layerRef.current.rwy, layerRef.current.wind].filter(
-        (l): l is L.Layer => !!l
-      );
+      const base = [layerRef.current.dep, layerRef.current.arr, layerRef.current.route, layerRef.current.rwy, layerRef.current.wind].filter(Boolean) as L.Layer[];
 
       if (opts?.includeNear && nearbyLayerRef.current) {
         nearbyLayerRef.current.eachLayer((l) => base.push(l));
@@ -1604,7 +1599,7 @@ export default function MapPage() {
             brief?.airports?.dep?.runways?.[0]?.heading ??
             350;
 
-          layerRef.current.rwy = L.polyline(runwayLine(A, heading), { color: "#38bdf8", weight: 4 }).addTo(map);
+          layerRef.current.rwy = L.polyline(runwayLine([A[0], A[1]], heading), { color: "#38bdf8", weight: 4 }).addTo(map);
           layerRef.current.route = L.polyline([A, B], { weight: 3 }).addTo(map);
 
           const wdir = brief?.met?.dep?.[0]?.parsed?.wind_dir as number | undefined;
@@ -1615,9 +1610,7 @@ export default function MapPage() {
           if (w2) layerRef.current.wind = L.marker(A, { icon: w2 }).addTo(map);
 
           const group2 = L.featureGroup(
-            [layerRef.current.route, layerRef.current.dep, layerRef.current.arr, layerRef.current.rwy, layerRef.current.wind].filter(
-              (l): l is L.Layer => !!l
-            )
+            [layerRef.current.route, layerRef.current.dep, layerRef.current.arr, layerRef.current.rwy, layerRef.current.wind].filter(Boolean) as L.Layer[]
           );
           map.fitBounds(group2.getBounds(), { padding: [30, 30] });
 
@@ -1679,7 +1672,7 @@ export default function MapPage() {
 
     window.addEventListener("settings-updated", onSettingsUpdated);
 
-    const legend = L.control({ position: "bottomleft" });
+    const legend = new L.Control({ position: "bottomleft" });
     legend.onAdd = () => {
       const div = L.DomUtil.create("div");
       div.style.background = "rgba(24,24,27,0.82)";
@@ -1723,7 +1716,7 @@ export default function MapPage() {
       btn.style.color = v ? "#bae6fd" : "#e4e4e7";
     }
 
-    const controls = L.control({ position: "topright" });
+    const controls = new L.Control({ position: "topright" });
     controls.onAdd = () => {
       const div = L.DomUtil.create("div", "leaflet-bar");
       div.style.display = "flex";

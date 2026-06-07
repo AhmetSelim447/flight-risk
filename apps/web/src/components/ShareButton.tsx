@@ -67,7 +67,7 @@ export default function ShareButton() {
       className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
       title="Bu brief linkini kopyala"
     >
-      {copied ? "Kopyalandı ✅" : "Share"}
+      {copied ? "Kopyalandı" : "Paylaş"}
     </button>
   );
 }

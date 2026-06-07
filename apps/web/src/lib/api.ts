@@ -41,8 +41,8 @@ export type AirportRow = {
 
 export type BriefResponse = {
   airports: {
-    dep: AirportRow & { activeRunway?: { heading: number; length_m?: number } };
-    arr: AirportRow & { activeRunway?: { heading: number; length_m?: number } };
+    dep: AirportRow & { activeRunway?: { id?: string; heading: number; length_m?: number } };
+    arr: AirportRow & { activeRunway?: { id?: string; heading: number; length_m?: number } };
   };
   met: { dep: any[]; arr: any[] };
   taf?: { dep?: any[]; arr?: any[] };
@@ -53,8 +53,108 @@ export type BriefResponse = {
     headwind: number;
     crosswind: number;
     alternates: string[];
+    ml?: {
+      mlScore: number;
+      ruleScore: number;
+      finalScore: number;
+      notamSemanticScore: number;
+      weatherAssessment?: {
+        score: number;
+        trainedScore?: number | null;
+        heuristicScore?: number;
+        floorScore?: number;
+        floorApplied?: boolean;
+        floorReasons?: string[];
+        categories?: {
+          key: string;
+          label: string;
+          status: string;
+          detail: string;
+          present: boolean;
+          score: number;
+        }[];
+      };
+      confidence?: {
+        level: "high" | "medium" | "low";
+        score: number;
+        summary?: string;
+        factors?: string[];
+      };
+      drivers?: string[];
+      modelVersion?: string;
+      limitedAdjustment?: {
+        applied?: boolean;
+        fromClass?: string;
+        toClass?: string;
+        reason?: string;
+      };
+    };
   };
   notam?: { dep?: any[]; arr?: any[] };
+  aiNotamAnalysis?: { dep?: any[]; arr?: any[] };
+  aiReport?: {
+    summary?: string;
+    riskInterpretation?: string;
+    notamImpacts?: string[];
+    weatherConcerns?: string[];
+    windConcerns?: string[];
+    alternateCommentary?: string;
+    confidenceNote?: string;
+    limitedAdjustment?: string;
+  };
+};
+
+export type ModelStatusResponse = {
+  model: {
+    loaded: boolean;
+    path: string;
+    modelVersion?: string;
+    createdAt?: string;
+    targetColumn?: string;
+    classes?: number[];
+    featureColumns?: string[];
+    scoreMapping?: Record<string, number>;
+    labelDefinition?: string;
+    metrics?: any;
+  };
+  evaluation: {
+    path: string;
+    available?: boolean;
+    createdAt?: string;
+    targetColumn?: string;
+    splits?: any;
+    evaluations?: any[];
+  };
+  dataset: {
+    path: string;
+    exists: boolean;
+    bytes: number;
+    updatedAt: string | null;
+  };
+  feedback: FeedbackSummary;
+  snapshots?: {
+    path: string;
+    exists: boolean;
+    fileCount: number;
+    latestFile: string | null;
+    latestUpdatedAt: string | null;
+    latestTafFile: string | null;
+    latestTafUpdatedAt: string | null;
+    latestTafRecords: number;
+    latestTafStations: string[];
+  };
+  providers?: {
+    metProvider: string;
+    notamProvider: string;
+    notamSyntheticMode?: string;
+    aiServiceUrl?: string;
+  };
+};
+
+export type FeedbackSummary = {
+  count: number;
+  byVerdict: Record<string, number>;
+  latest: any[];
 };
 
 /**
@@ -110,6 +210,29 @@ export async function fetchBrief(depIcao: string, arrIcao: string) {
     `${API_BASE}/brief?dep=${encodeURIComponent(depIcao)}&arr=${encodeURIComponent(arrIcao)}${crossQ}`
   );
   return safeJson<BriefResponse>(r);
+}
+
+export async function fetchModelStatus() {
+  const r = await fetch(`${API_BASE}/model/status?_=${Date.now()}`);
+  return safeJson<ModelStatusResponse>(r);
+}
+
+export async function fetchFeedbackSummary() {
+  const r = await fetch(`${API_BASE}/feedback/summary?_=${Date.now()}`);
+  return safeJson<FeedbackSummary>(r);
+}
+
+export async function submitBriefFeedback(payload: {
+  verdict: "correct" | "too_conservative" | "missed_risk" | "wrong_reason";
+  note?: string;
+  brief: BriefResponse;
+}) {
+  const r = await fetch(`${API_BASE}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return safeJson<{ ok: boolean; item: any; summary: FeedbackSummary }>(r);
 }
 
 /** Backend -> UI uyumu: lat/lon varsa coords'a koy */

@@ -1,6 +1,26 @@
 // apps/api/src/lib/notam.simulated.ts
 
-import type { NotamContext, NotamItem, NotamProvider, NotamTemplate } from "./notam.types";
+import { byICAO } from "../data/airports";
+import type {
+  NotamContext,
+  NotamEvent,
+  NotamEventCategory,
+  NotamImpact,
+  NotamItem,
+  NotamProvider,
+} from "./notam.types";
+
+type SyntheticMode = "deterministic" | "llm_text" | "hybrid";
+
+type EventDefinition = {
+  key: string;
+  category: NotamEventCategory;
+  severity: "Critical" | "Medium" | "Info";
+  impacts: NotamImpact[];
+  score: number;
+  reason: string;
+  runwayScoped?: boolean;
+};
 
 function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -18,6 +38,25 @@ function isValidIcao(icao: string): boolean {
   return /^[A-Z]{4}$/.test(icao);
 }
 
+function syntheticMode(): SyntheticMode {
+  const raw = String(process.env.NOTAM_SYNTHETIC_MODE || "deterministic").toLowerCase();
+  if (raw === "llm_text" || raw === "hybrid") return raw;
+  return "deterministic";
+}
+
+function aiServiceUrl() {
+  return String(
+    process.env.AI_SERVICE_URL ||
+      process.env.NLP_SERVICE_URL ||
+      "http://localhost:8000"
+  ).replace(/\/+$/, "");
+}
+
+function seedBucketHours() {
+  const n = Number(process.env.NOTAM_SEED_BUCKET_HOURS ?? 6);
+  return Number.isFinite(n) && n > 0 ? Math.min(24, Math.max(1, Math.round(n))) : 6;
+}
+
 function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
@@ -29,17 +68,20 @@ function hashString(s: string): number {
 function uniqueByKey<T>(items: T[], getKey: (x: T) => string): T[] {
   const seen = new Set<string>();
   const out: T[] = [];
+
   for (const item of items) {
     const key = getKey(item);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(item);
   }
+
   return out;
 }
 
 function rotatePick<T>(items: T[], count: number, seed: number): T[] {
   if (!items.length || count <= 0) return [];
+
   const out: T[] = [];
   const start = seed % items.length;
 
@@ -55,7 +97,7 @@ function isTurkiyeAirport(icao: string): boolean {
 }
 
 function isMajorAirport(icao: string): boolean {
-  return ["LTFM", "LTAC", "LTBA", "LTAI", "LTBJ", "LTBS"].includes(icao);
+  return ["LTFM", "LTFJ", "LTAC", "LTBA", "LTAI", "LTBJ", "LTBS"].includes(icao);
 }
 
 function isEasternAirport(icao: string): boolean {
@@ -63,288 +105,417 @@ function isEasternAirport(icao: string): boolean {
 }
 
 function isCoastalAirport(icao: string): boolean {
-  return /^(LTAI|LTBJ|LTBS|LTFE|LTAJ|LTBQ|LTCJ)$/.test(icao);
+  return /^(LTAI|LTBJ|LTBS|LTFE|LTAJ|LTBQ|LTCJ|LTFJ)$/.test(icao);
 }
 
 function utcContext(now: Date) {
+  const bucketHours = seedBucketHours();
+  const bucket = Math.floor(now.getUTCHours() / bucketHours);
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), bucket * bucketHours));
+  const end = new Date(start.getTime() + bucketHours * 60 * 60 * 1000);
+
   return {
-    hour: now.getUTCHours(),
+    bucket,
+    bucketHours,
     day: now.getUTCDate(),
+    hour: now.getUTCHours(),
     month: now.getUTCMonth() + 1,
+    validFrom: start.toISOString(),
+    validTo: end.toISOString(),
   };
 }
 
-const COMMON_POOL: NotamTemplate[] = [
+function chooseRunway(icao: string, seed: number) {
+  const airport = byICAO(icao);
+  const runways = airport?.runways ?? [];
+  if (!runways.length) return undefined;
+  return runways[seed % runways.length]?.id;
+}
+
+const COMMON_EVENTS: EventDefinition[] = [
   {
     key: "bird",
-    text: "Bird activity reported in vicinity of aerodrome. Exercise caution during takeoff and landing.",
-    critical: false,
+    category: "weather_advisory",
+    severity: "Info",
+    impacts: ["weather"],
+    score: 12,
+    reason: "Wildlife hazard can affect low altitude phases.",
   },
   {
-    key: "tx-light",
-    text: "Taxiway edge lighting partially unserviceable on secondary taxi routes.",
-    critical: false,
+    key: "apron-stands",
+    category: "apron_works",
+    severity: "Info",
+    impacts: [],
+    score: 8,
+    reason: "Apron constraints can affect ground movement but not runway availability.",
   },
   {
-    key: "apron",
-    text: "Apron stand restrictions in effect due ground equipment positioning.",
-    critical: false,
+    key: "taxiway-works",
+    category: "taxiway_works",
+    severity: "Medium",
+    impacts: ["surface"],
+    score: 24,
+    reason: "Taxiway works can change routing and increase ground delay.",
   },
   {
-    key: "works",
-    text: "Maintenance activity in progress on non-movement area adjacent to apron.",
-    critical: false,
-  },
-  {
-    key: "marshaller",
-    text: "Follow marshaller guidance on selected stands due temporary layout change.",
-    critical: false,
-  },
-];
-
-const MAJOR_POOL: NotamTemplate[] = [
-  {
-    key: "dep-delay",
-    text: "Short departure delays possible due runway inspection windows.",
-    critical: true,
-  },
-  {
-    key: "apron-cong",
-    text: "Peak-hour apron congestion expected. Startup and pushback delays possible.",
-    critical: false,
-  },
-  {
-    key: "flow",
-    text: "ATC flow measures may apply during peak traffic periods.",
-    critical: false,
-  },
-  {
-    key: "arr-seq",
-    text: "Extended arrival sequencing possible due dense traffic demand.",
-    critical: false,
+    key: "lighting",
+    category: "lighting_maintenance",
+    severity: "Medium",
+    impacts: ["lighting"],
+    score: 28,
+    reason: "Lighting maintenance can reduce visual guidance.",
+    runwayScoped: true,
   },
 ];
 
-const EASTERN_POOL: NotamTemplate[] = [
+const RUNWAY_EVENTS: EventDefinition[] = [
   {
-    key: "terrain-turb",
-    text: "Moderate terrain-induced turbulence possible in terminal area.",
-    critical: false,
+    key: "rwy-inspection",
+    category: "runway_inspection",
+    severity: "Medium",
+    impacts: ["runway"],
+    score: 34,
+    reason: "Runway inspection windows can create short occupancy restrictions.",
+    runwayScoped: true,
   },
   {
-    key: "llws",
-    text: "Low level windshear reported by recent arrivals and departures.",
-    critical: true,
+    key: "rwy-surface",
+    category: "runway_surface",
+    severity: "Critical",
+    impacts: ["runway", "surface"],
+    score: 58,
+    reason: "Runway surface condition directly affects takeoff and landing planning.",
+    runwayScoped: true,
   },
   {
-    key: "icing",
-    text: "Moderate icing reported in climb/descent layers in surrounding area.",
-    critical: true,
-  },
-];
-
-const COASTAL_POOL: NotamTemplate[] = [
-  {
-    key: "seabreeze",
-    text: "Sea breeze may cause sudden wind shifts near final approach path.",
-    critical: true,
-  },
-  {
-    key: "humid-vis",
-    text: "Morning humidity and haze may reduce visibility in coastal sector.",
-    critical: false,
-  },
-  {
-    key: "crosswind",
-    text: "Localized crosswind fluctuations possible due shoreline wind transition.",
-    critical: true,
+    key: "rwy-closure",
+    category: "runway_closure",
+    severity: "Critical",
+    impacts: ["runway"],
+    score: 72,
+    reason: "Runway closure is a direct operational constraint.",
+    runwayScoped: true,
   },
 ];
 
-const NAV_POOL: NotamTemplate[] = [
+const NAV_EVENTS: EventDefinition[] = [
   {
-    key: "ils",
-    text: "ILS unavailable on one runway direction until further notice.",
-    critical: true,
+    key: "ils-outage",
+    category: "nav_outage",
+    severity: "Critical",
+    impacts: ["nav"],
+    score: 52,
+    reason: "ILS outage can affect approach minima and usable procedures.",
+    runwayScoped: true,
   },
   {
-    key: "papi",
-    text: "PAPI unavailable for one runway direction. Visual approach guidance reduced.",
-    critical: true,
+    key: "papi-outage",
+    category: "nav_outage",
+    severity: "Critical",
+    impacts: ["nav", "lighting"],
+    score: 48,
+    reason: "PAPI outage reduces visual approach guidance.",
+    runwayScoped: true,
   },
   {
-    key: "vor",
-    text: "VOR/DME intermittent signal fluctuation reported. Monitor raw data.",
-    critical: false,
+    key: "vor-dme",
+    category: "nav_outage",
+    severity: "Medium",
+    impacts: ["nav"],
+    score: 30,
+    reason: "VOR/DME fluctuation can affect conventional navigation backup.",
   },
   {
     key: "gnss",
-    text: "Possible GNSS interference may be experienced intermittently in terminal area.",
-    critical: true,
+    category: "nav_outage",
+    severity: "Critical",
+    impacts: ["nav"],
+    score: 50,
+    reason: "GNSS interference can affect RNAV/RNP capability.",
   },
 ];
 
-const OPS_POOL: NotamTemplate[] = [
+const MAJOR_EVENTS: EventDefinition[] = [
   {
-    key: "rwy-surface",
-    text: "Runway surface treatment or inspection in progress. Minor operational delay possible.",
-    critical: true,
+    key: "flow",
+    category: "airspace_activity",
+    severity: "Medium",
+    impacts: ["airspace"],
+    score: 26,
+    reason: "Dense arrival and departure flow can increase sequencing delay.",
   },
   {
-    key: "twy-closure",
-    text: "Portion of parallel taxiway closed due maintenance activity.",
-    critical: false,
-  },
-  {
-    key: "stand-closure",
-    text: "Selected parking stands unavailable due apron inspection.",
-    critical: false,
-  },
-  {
-    key: "follow-me",
-    text: "Follow-me guidance may be required on selected taxi routes.",
-    critical: false,
+    key: "ops-hours",
+    category: "ops_hours",
+    severity: "Medium",
+    impacts: ["ops_hours"],
+    score: 32,
+    reason: "Operating window restrictions can affect schedule feasibility.",
   },
 ];
 
-const NIGHT_POOL: NotamTemplate[] = [
+const TURKIYE_EVENTS: EventDefinition[] = [
   {
-    key: "night-lighting",
-    text: "Night airfield lighting maintenance in progress on selected segments.",
-    critical: false,
-  },
-  {
-    key: "night-works",
-    text: "Overnight works may affect normal taxi routing after 2200Z.",
-    critical: false,
+    key: "mil-activity",
+    category: "airspace_activity",
+    severity: "Medium",
+    impacts: ["airspace"],
+    score: 30,
+    reason: "Temporary military activity may affect nearby controlled airspace segments.",
   },
 ];
 
-const WINTER_POOL: NotamTemplate[] = [
+const EASTERN_EVENTS: EventDefinition[] = [
   {
-    key: "winter-ops",
-    text: "Winter operations in effect. De-icing coordination may affect turnaround time.",
-    critical: false,
+    key: "llws",
+    category: "weather_advisory",
+    severity: "Critical",
+    impacts: ["weather"],
+    score: 56,
+    reason: "Low level windshear reports are significant for approach and departure.",
+  },
+  {
+    key: "terrain-turb",
+    category: "weather_advisory",
+    severity: "Medium",
+    impacts: ["weather"],
+    score: 30,
+    reason: "Terrain-induced turbulence can affect terminal operations.",
+  },
+];
+
+const COASTAL_EVENTS: EventDefinition[] = [
+  {
+    key: "sea-breeze",
+    category: "weather_advisory",
+    severity: "Medium",
+    impacts: ["weather"],
+    score: 28,
+    reason: "Sea breeze can cause runway wind component changes.",
+  },
+  {
+    key: "coastal-crosswind",
+    category: "weather_advisory",
+    severity: "Critical",
+    impacts: ["weather", "runway"],
+    score: 46,
+    reason: "Coastal wind transition can increase crosswind variability.",
+    runwayScoped: true,
+  },
+];
+
+const WINTER_EVENTS: EventDefinition[] = [
+  {
+    key: "icing",
+    category: "weather_advisory",
+    severity: "Critical",
+    impacts: ["weather"],
+    score: 52,
+    reason: "Icing reports can affect climb and descent planning.",
   },
   {
     key: "snow-ice",
-    text: "Possible snow or ice contamination assessment required during adverse weather periods.",
-    critical: true,
+    category: "runway_surface",
+    severity: "Critical",
+    impacts: ["runway", "surface", "weather"],
+    score: 62,
+    reason: "Snow or ice contamination assessment can affect runway performance.",
+    runwayScoped: true,
   },
 ];
 
-const GENERAL_WEATHER_POOL: NotamTemplate[] = [
+const SUMMER_EVENTS: EventDefinition[] = [
   {
-    key: "windshear",
-    text: "Windshear advisory in force in terminal area.",
-    critical: true,
+    key: "braking-precip",
+    category: "runway_surface",
+    severity: "Critical",
+    impacts: ["runway", "surface", "weather"],
+    score: 50,
+    reason: "Reduced braking action can occur during heavy precipitation periods.",
+    runwayScoped: true,
   },
   {
     key: "turbulence",
-    text: "Moderate turbulence reported on approach or departure corridor.",
-    critical: false,
-  },
-  {
-    key: "braking",
-    text: "Braking action may be reduced during precipitation periods.",
-    critical: true,
+    category: "weather_advisory",
+    severity: "Medium",
+    impacts: ["weather"],
+    score: 26,
+    reason: "Moderate turbulence reports can affect passenger and crew planning.",
   },
 ];
 
-function buildPool(ctx: NotamContext): NotamTemplate[] {
+function buildEventPool(ctx: NotamContext): EventDefinition[] {
   const { icao, now } = ctx;
   const { hour, month } = utcContext(now);
+  const pool: EventDefinition[] = [];
 
-  const pool: NotamTemplate[] = [];
+  pool.push(...COMMON_EVENTS, ...RUNWAY_EVENTS, ...NAV_EVENTS);
 
-  pool.push(...COMMON_POOL);
-  pool.push(...NAV_POOL);
-  pool.push(...OPS_POOL);
+  if (isTurkiyeAirport(icao)) pool.push(...TURKIYE_EVENTS);
+  if (isMajorAirport(icao)) pool.push(...MAJOR_EVENTS);
+  if (isEasternAirport(icao)) pool.push(...EASTERN_EVENTS);
+  if (isCoastalAirport(icao)) pool.push(...COASTAL_EVENTS);
 
-  if (isTurkiyeAirport(icao)) {
+  if (month >= 11 || month <= 3) {
+    pool.push(...WINTER_EVENTS);
+  } else {
+    pool.push(...SUMMER_EVENTS);
+  }
+
+  if (hour >= 19 || hour <= 4) {
     pool.push({
-      key: "mil-area",
-      text: "Temporary military activity may affect nearby controlled airspace segments.",
-      critical: false,
+      key: "night-lighting",
+      category: "lighting_maintenance",
+      severity: "Medium",
+      impacts: ["lighting"],
+      score: 27,
+      reason: "Night lighting maintenance can reduce visual guidance in low light.",
+      runwayScoped: true,
     });
   }
 
-  if (isMajorAirport(icao)) pool.push(...MAJOR_POOL);
-  if (isEasternAirport(icao)) pool.push(...EASTERN_POOL);
-  if (isCoastalAirport(icao)) pool.push(...COASTAL_POOL);
-
-  if (hour >= 19 || hour <= 4) {
-    pool.push(...NIGHT_POOL);
-  }
-
-  if (month >= 11 || month <= 3) {
-    pool.push(...WINTER_POOL);
-  } else {
-    pool.push(...GENERAL_WEATHER_POOL);
-  }
-
   if (icao === "LTFM") {
-    pool.push(
-      {
-        key: "ltfm-flow",
-        text: "Dense arrival and departure flow expected. Sequencing delay possible on peak banks.",
-        critical: false,
-      },
-      {
-        key: "ltfm-rwy",
-        text: "One runway subject to short-notice inspection occupancy windows.",
-        critical: true,
-      }
-    );
+    pool.push({
+      key: "ltfm-rwy-occupancy",
+      category: "runway_inspection",
+      severity: "Critical",
+      impacts: ["runway"],
+      score: 54,
+      reason: "High-capacity runway system can be affected by short-notice inspection windows.",
+      runwayScoped: true,
+    });
   }
 
   if (icao === "LTAC") {
-    pool.push(
-      {
-        key: "ltac-papi",
-        text: "PAPI unavailable on one runway direction.",
-        critical: true,
-      },
-      {
-        key: "ltac-apron",
-        text: "Apron congestion expected due scheduled peak movements.",
-        critical: false,
-      }
-    );
+    pool.push({
+      key: "ltac-papi",
+      category: "nav_outage",
+      severity: "Critical",
+      impacts: ["nav", "lighting"],
+      score: 48,
+      reason: "PAPI unavailability can reduce visual approach guidance.",
+      runwayScoped: true,
+    });
   }
 
   if (icao === "LTCA") {
-    pool.push(
-      {
-        key: "ltca-llws",
-        text: "Low level windshear reported in vicinity of field by recent traffic.",
-        critical: true,
-      },
-      {
-        key: "ltca-terrain",
-        text: "Terrain-induced turbulence possible below transition altitude.",
-        critical: false,
-      }
-    );
+    pool.push({
+      key: "ltca-llws",
+      category: "weather_advisory",
+      severity: "Critical",
+      impacts: ["weather"],
+      score: 58,
+      reason: "Terrain and recent reports increase low-level windshear concern.",
+    });
   }
 
   return uniqueByKey(pool, (x) => x.key);
 }
 
-function buildNotamsForAirport(icao: string, now: Date): NotamItem[] {
+function buildEvent(icao: string, definition: EventDefinition, now: Date, seed: number): NotamEvent {
+  const { validFrom, validTo } = utcContext(now);
+  const mode = syntheticMode();
+
+  return {
+    key: definition.key,
+    category: definition.category,
+    severity: definition.severity,
+    critical: definition.severity === "Critical",
+    impacts: definition.impacts,
+    validFrom,
+    validTo,
+    affectedRunway: definition.runwayScoped ? chooseRunway(icao, seed) : undefined,
+    score: definition.score,
+    reason: definition.reason,
+    syntheticMode: mode,
+  };
+}
+
+function deterministicText(icao: string, event: NotamEvent): string {
+  const rwy = event.affectedRunway ? ` RWY ${event.affectedRunway}` : "";
+
+  switch (event.category) {
+    case "runway_closure":
+      return `${icao}${rwy} closed during published validity period due operational works. Check runway availability before departure.`;
+    case "runway_inspection":
+      return `${icao}${rwy} subject to short-notice inspection occupancy windows. Minor departure or arrival delay possible.`;
+    case "runway_surface":
+      return `${icao}${rwy} surface condition assessment in progress. Braking or performance review may be required.`;
+    case "nav_outage":
+      return `${icao}${rwy} navigation or visual approach aid unavailable or intermittent. Review approach minima and backup procedures.`;
+    case "lighting_maintenance":
+      return `${icao}${rwy} airfield lighting maintenance in progress. Visual guidance may be reduced.`;
+    case "ops_hours":
+      return `${icao} aerodrome operating hours or service availability restricted within validity period. Confirm schedule compatibility.`;
+    case "apron_works":
+      return `${icao} apron stand restrictions in effect due maintenance activity. Ground movement delay possible.`;
+    case "taxiway_works":
+      return `${icao} taxiway routing restrictions in effect due works. Follow ATC and ground guidance.`;
+    case "airspace_activity":
+      return `${icao} temporary controlled airspace activity may affect nearby arrival or departure routing.`;
+    case "weather_advisory":
+      return `${icao} weather-related operational advisory in force. Additional briefing review recommended.`;
+    default:
+      return `${icao} operational advisory in force. Review details before flight.`;
+  }
+}
+
+async function enrichedText(icao: string, event: NotamEvent): Promise<string> {
+  const base = deterministicText(icao, event);
+
+  if (event.syntheticMode === "deterministic") return base;
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 2500));
+
+    const response = await fetch(`${aiServiceUrl()}/ai/notam/render`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        icao,
+        event,
+        deterministicText: base,
+      }),
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(timer));
+
+    if (!response.ok) return base;
+
+    const rendered = await response.json().catch(() => null);
+    const text = typeof rendered?.text === "string" ? rendered.text.trim() : "";
+
+    // Validation gate: text layer may only change wording, not event semantics.
+    if (!text.includes(icao) || text.length < base.length) return base;
+    return text;
+  } catch {
+    return base;
+  }
+}
+
+async function buildNotamsForAirport(icao: string, now: Date): Promise<NotamItem[]> {
   const ctx: NotamContext = { icao, now };
-  const { hour, day } = utcContext(now);
+  const { bucket, day } = utcContext(now);
+  const seed = hashString(`${icao}-${day}-${bucket}-${seedBucketHours()}`);
 
-  const pool = buildPool(ctx);
-  const seed = hashString(`${icao}-${day}-${Math.floor(hour / 3)}`);
-
+  const pool = buildEventPool(ctx);
   const count = isMajorAirport(icao) ? 5 : 4;
   const chosen = rotatePick(pool, count, seed);
 
-  return chosen.map((tpl, idx) => ({
-    id: `${icao}-${String(idx + 1).padStart(3, "0")}`,
-    text: tpl.text,
-    critical: Boolean(tpl.critical),
+  return Promise.all(chosen.map(async (definition, idx) => {
+    const event = buildEvent(icao, definition, now, seed + idx);
+
+    return {
+      id: `${icao}-SYN-${String(idx + 1).padStart(3, "0")}`,
+      text: await enrichedText(icao, event),
+      critical: event.critical,
+      synthetic: true,
+      severity: event.severity,
+      impacts: event.impacts,
+      validFrom: event.validFrom,
+      validTo: event.validTo,
+      event,
+    };
   }));
 }
 

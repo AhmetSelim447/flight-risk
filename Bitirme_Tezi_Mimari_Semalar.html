@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bitirme Tezi Mimari Şemalar</title>
+<style>
+:root {
+  color-scheme: light;
+  background: #ffffff;
+  color: #111111;
+}
+body {
+  margin: 0;
+  background: #ffffff;
+  color: #111111;
+  font-family: "Times New Roman", Times, serif;
+}
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 48px 72px;
+}
+h1 {
+  text-align: center;
+  font-size: 22pt;
+  margin: 0 0 28px;
+}
+h2 {
+  font-size: 16pt;
+  margin: 28px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #d7dce2;
+}
+.diagram-card {
+  break-inside: avoid;
+  margin: 0 0 34px;
+  padding: 18px;
+  border: 1px solid #cfd6df;
+  border-radius: 8px;
+  background: #ffffff;
+}
+.mermaid {
+  text-align: center;
+  overflow-x: auto;
+}
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+.note {
+  color: #475569;
+  text-align: center;
+  margin-bottom: 24px;
+}
+</style>
+</head>
+<body>
+<main class="page">
+<h1>Bitirme Tezi Mimari Şemalar</h1>
+<p class="note">Bu sayfa, tez içindeki Mermaid şemalarını ekran görüntüsü almak için beyaz zeminde render eder.</p>
+<section class="diagram-card">
+<h2>Şema 1 - Genel Sistem Mimarisi</h2>
+<pre class="mermaid">
+flowchart LR
+    U[&quot;Kullanıcı / Pilot Adayı&quot;] --&gt; W[&quot;Web UI&lt;br/&gt;React + Vite&quot;]
+    W --&gt; API[&quot;Express API&lt;br/&gt;/brief orkestratörü&quot;]
+    API --&gt; MET[&quot;METAR/TAF Provider Chain&lt;br/&gt;AviationWeather -&gt; CheckWX -&gt; AVWX -&gt; NOAA&quot;]
+    API --&gt; NOTAM[&quot;NOTAM Provider&lt;br/&gt;Laminar/SkyLink veya Sentetik Demo&quot;]
+    API --&gt; RULE[&quot;Kural Tabanlı Risk Motoru&quot;]
+    API --&gt; AI[&quot;Python AI/NLP Servisi&quot;]
+    AI --&gt; MODEL[&quot;METAR Proxy-Risk Modeli&lt;br/&gt;risk_model.json&quot;]
+    AI --&gt; PARSER[&quot;NOTAM Semantik Parser&quot;]
+    AI --&gt; REPORT[&quot;Türkçe Açıklanabilir Rapor&quot;]
+    API --&gt; LOG[&quot;Brief Query Logs&lt;br/&gt;JSONL&quot;]
+    API --&gt; FB[&quot;Feedback Store&lt;br/&gt;JSONL&quot;]
+    API --&gt; W
+</pre>
+</section>
+<section class="diagram-card">
+<h2>Şema 2 - Brief Request Sequence</h2>
+<pre class="mermaid">
+sequenceDiagram
+    participant User as Kullanıcı
+    participant Web as Web UI
+    participant API as Express API
+    participant MET as METAR/TAF Provider
+    participant NOTAM as NOTAM Provider
+    participant AI as AI/NLP Service
+
+    User-&gt;&gt;Web: DEP ve ARR seçer
+    Web-&gt;&gt;API: GET /brief?dep=...&amp;arr=...
+    API-&gt;&gt;MET: METAR/TAF isteği
+    MET--&gt;&gt;API: Normalize met/taf response
+    API-&gt;&gt;NOTAM: NOTAM isteği
+    NOTAM--&gt;&gt;API: Canlı veya sentetik NOTAM
+    API-&gt;&gt;API: Rule risk hesapla
+    API-&gt;&gt;AI: /ai/notam/parse
+    AI--&gt;&gt;API: NOTAM semantic impact
+    API-&gt;&gt;AI: /ai/risk/predict
+    AI--&gt;&gt;API: ML/final risk response
+    API-&gt;&gt;AI: /ai/brief/report
+    AI--&gt;&gt;API: Türkçe açıklama
+    API--&gt;&gt;Web: Birleşik brief response
+    Web--&gt;&gt;User: Risk özeti, tablo, detaylar
+</pre>
+</section>
+<section class="diagram-card">
+<h2>Şema 3 - Hibrit Risk Skoru</h2>
+<pre class="mermaid">
+flowchart TD
+    M[&quot;METAR/TAF Features&quot;] --&gt; ML[&quot;ML Risk Model&lt;br/&gt;mlScore&quot;]
+    R[&quot;Visibility / Ceiling / Wind / TAF Rules&quot;] --&gt; RULE[&quot;Rule Engine&lt;br/&gt;ruleScore&quot;]
+    N[&quot;NOTAM Categories&quot;] --&gt; NS[&quot;NOTAM Semantic Score&quot;]
+    ML --&gt; F[&quot;Weighted Final Score&quot;]
+    RULE --&gt; F
+    NS --&gt; F
+    G[&quot;Guardrail Floors&lt;br/&gt;Critical Weather Thresholds&quot;] --&gt; F
+    F --&gt; B{&quot;Risk Band&quot;}
+    B --&gt; LOW[&quot;0-39 Düşük Risk&quot;]
+    B --&gt; MID[&quot;40-69 Orta Risk&quot;]
+    B --&gt; HIGH[&quot;70-100 Yüksek Risk&quot;]
+</pre>
+</section>
+<section class="diagram-card">
+<h2>Şema 4 - NOTAM Canlı/Sentetik Pipeline</h2>
+<pre class="mermaid">
+flowchart LR
+    CFG[&quot;NOTAM_PROVIDER config&quot;] --&gt; LIVE{&quot;Canlı provider var mı?&quot;}
+    LIVE -- &quot;Evet&quot; --&gt; LAM[&quot;Laminar / SkyLink&quot;]
+    LIVE -- &quot;Hayır veya hata&quot; --&gt; SYN[&quot;Deterministik Sentetik NOTAM&quot;]
+    SYN --&gt; EVENT[&quot;Structured Event&lt;br/&gt;category severity critical score&quot;]
+    LAM --&gt; RAW[&quot;Raw NOTAM&quot;]
+    RAW --&gt; PARSE[&quot;NOTAM Parser&quot;]
+    EVENT --&gt; PARSE
+    PARSE --&gt; IMPACT[&quot;Runway / Nav / Surface / Airspace / Ops Impact&quot;]
+    IMPACT --&gt; RISK[&quot;NOTAM Semantic Score&quot;]
+    IMPACT --&gt; UI[&quot;Türkçe Kritik Gerekçe&quot;]
+</pre>
+</section>
+<section class="diagram-card">
+<h2>Şema 5 - ML Pipeline</h2>
+<pre class="mermaid">
+flowchart TD
+    A[&quot;Turkey LT* Airport List&quot;] --&gt; D[&quot;Download Historical METAR&quot;]
+    D --&gt; RAW[&quot;data/raw/metar&quot;]
+    RAW --&gt; FE[&quot;Feature Extraction&quot;]
+    FE --&gt; LABEL[&quot;Proxy Risk Labeling&quot;]
+    LABEL --&gt; DS[&quot;risk_dataset.csv&quot;]
+    DS --&gt; TRAIN[&quot;Train Tabular Model&quot;]
+    TRAIN --&gt; MODEL[&quot;risk_model.json&quot;]
+    DS --&gt; EVAL[&quot;Time Split + Airport Holdout&quot;]
+    EVAL --&gt; REPORT[&quot;evaluation.json&quot;]
+    MODEL --&gt; AI[&quot;AI Service Runtime Loader&quot;]
+</pre>
+</section>
+<section class="diagram-card">
+<h2>Şema 6 - BriefPanel Bilgi Hiyerarşisi</h2>
+<pre class="mermaid">
+flowchart TD
+    A[&quot;İlk Görünüm&quot;] --&gt; B[&quot;Rota Özeti&quot;]
+    A --&gt; C[&quot;Düşük / Orta / Yüksek Risk&quot;]
+    A --&gt; D[&quot;En Önemli 3 Gerekçe&quot;]
+    A --&gt; E[&quot;Uçuş Risk Raporu Tablosu&quot;]
+    E --&gt; F[&quot;Kritik NOTAM Gerekçeleri&quot;]
+    E --&gt; G[&quot;METAR/TAF Özet Kartları&quot;]
+    G --&gt; H[&quot;Ham METAR/TAF Detayları&lt;br/&gt;Kapalı&quot;]
+    F --&gt; I[&quot;Ham NOTAM Metinleri&lt;br/&gt;Kapalı&quot;]
+    A --&gt; J[&quot;Model ve AI Detayları&lt;br/&gt;Kapalı&quot;]
+</pre>
+</section>
+<section class="diagram-card">
+<h2>Şema 7 - Feedback ve Kalibrasyon Döngüsü</h2>
+<pre class="mermaid">
+flowchart LR
+    U[&quot;Kullanıcı Briefing Sonucu&quot;] --&gt; FB[&quot;Feedback&lt;br/&gt;correct / too_conservative / missed_risk / wrong_reason&quot;]
+    FB --&gt; STORE[&quot;data/feedback/brief_feedback.jsonl&quot;]
+    STORE --&gt; DASH[&quot;Calibration Dashboard&quot;]
+    DASH --&gt; REVIEW[&quot;False Positive / False Negative İncelemesi&quot;]
+    REVIEW --&gt; TH[&quot;Threshold ve Guardrail Analizi&quot;]
+    TH --&gt; FUTURE[&quot;Gelecek Model Kalibrasyonu&quot;]
+</pre>
+</section>
+</main>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+mermaid.initialize({ startOnLoad: true, securityLevel: "loose", theme: "base", themeVariables: { fontFamily: "Times New Roman, serif", primaryColor: "#f8fafc", primaryTextColor: "#111111", primaryBorderColor: "#64748b", lineColor: "#475569", secondaryColor: "#eef6ff", tertiaryColor: "#ffffff" } });
+</script>
+</body>
+</html>

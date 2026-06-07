@@ -70,7 +70,7 @@ export default function BriefPage() {
               {data.risk.class.toUpperCase()} · {data.risk.score}
             </span>
             <div className="mt-2 text-sm text-zinc-300">
-              Headwind: {data.risk.headwind} kt · Crosswind: {data.risk.crosswind} kt
+              Karşı rüzgar: {data.risk.headwind} kt · Yan rüzgar: {data.risk.crosswind} kt
             </div>
             {data.risk.reasons?.length ? (
               <ul className="list-disc ml-6 text-sm mt-2">

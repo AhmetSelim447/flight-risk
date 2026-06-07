@@ -1,6 +1,7 @@
 // apps/web/src/lib/settings.ts
 export type DistUnit = "km" | "mi" | "nm";
 export type WindUnit = "kt" | "kmh" | "mph" | "mps";
+export type TempUnit = "c" | "f";
 
 export interface Settings {
   /** Crosswind limit (kt cinsinden). Boş bırakılabilir; risk hesapları kendi default’unu kullanır. */
@@ -9,6 +10,7 @@ export interface Settings {
   distUnit: DistUnit;
   /** Rüzgâr birimi (UI gösterimi) */
   windUnit: WindUnit;
+  tempUnit?: TempUnit;
 }
 
 const KEY = "settings"; // mevcut kaydınla uyumlu
@@ -16,6 +18,7 @@ const DEFAULTS: Settings = {
   crossLimit: undefined,
   distUnit: "km",
   windUnit: "kt",
+  tempUnit: "c",
 };
 
 export function loadSettings(): Settings {
@@ -27,11 +30,13 @@ export function loadSettings(): Settings {
     // Güvenli birleşim ve enum koruması
     const dist = (s.distUnit as DistUnit) ?? DEFAULTS.distUnit;
     const wind = (s.windUnit as WindUnit) ?? DEFAULTS.windUnit;
+    const temp = (s.tempUnit as TempUnit) ?? DEFAULTS.tempUnit;
 
     return {
       crossLimit: typeof s.crossLimit === "number" ? s.crossLimit : DEFAULTS.crossLimit,
       distUnit: dist,
       windUnit: wind,
+      tempUnit: temp,
     };
   } catch {
     return DEFAULTS;

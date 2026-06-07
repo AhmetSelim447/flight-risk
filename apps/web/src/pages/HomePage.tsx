@@ -1,6 +1,6 @@
 import { useState } from "react";
 import SearchBox from "../components/SearchBox";
-import { AirportRow, BriefResponse, fetchBrief } from "../lib/api";
+import { fetchBrief, type AirportRow, type BriefResponse } from "../lib/api";
 
 export default function HomePage() {
   const [dep, setDep] = useState<AirportRow | null>(null);
@@ -26,7 +26,7 @@ export default function HomePage() {
       // MapPage güncellesin
       window.dispatchEvent(new Event("flight-route-updated"));
     } catch (e: any) {
-      setError(e?.message || "Brief alınamadı");
+      setError(e?.message || "Brifing alınamadı");
     } finally {
       setLoading(false);
     }
@@ -35,8 +35,8 @@ export default function HomePage() {
   return (
     <div className="p-4 space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SearchBox label="Departure" value={dep} onSelect={setDep} />
-        <SearchBox label="Arrival" value={arr} onSelect={setArr} />
+        <SearchBox label="Kalkış" value={dep} onSelect={setDep} />
+        <SearchBox label="Varış" value={arr} onSelect={setArr} />
       </div>
 
       <div className="flex items-center gap-3">
@@ -45,12 +45,12 @@ export default function HomePage() {
           disabled={!canBrief || loading}
           onClick={onBrief}
         >
-          {loading ? "Fetching…" : "Get Brief"}
+          {loading ? "Yükleniyor..." : "Brifing Al"}
         </button>
         {error && <span className="text-red-400 text-sm">{error}</span>}
       </div>
 
-      {/* Opsiyonel: en son brief’in minik özeti */}
+      {/* Opsiyonel: en son brifingin kısa özeti */}
       <LastBriefSummary />
     </div>
   );
@@ -67,7 +67,7 @@ function LastBriefSummary() {
           {b.airports.dep.icao} → {b.airports.arr.icao} — Risk: {b.risk.score} ({b.risk.class})
         </div>
         <div className="text-zinc-400">
-          Head {Math.round(b.risk.headwind)} kt • Cross {Math.round(b.risk.crosswind)} kt
+          Karşı rüzgar {Math.round(b.risk.headwind)} kt • Yan rüzgar {Math.round(b.risk.crosswind)} kt
         </div>
       </div>
     );

@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "data:download-metar": "python tools/ml_pipeline.py download-metar",
+    "data:collect-live": "python tools/ml_pipeline.py collect-live",
+    "data:collect-taf": "python tools/ml_pipeline.py collect-live --kinds taf",
+    "data:collect-taf-turkey": "python tools/ml_pipeline.py collect-live --stations turkey --kinds taf",
+    "data:build-dataset": "python tools/ml_pipeline.py build-dataset",
+    "ml:train": "python tools/ml_pipeline.py train",
+    "ml:evaluate": "python tools/ml_pipeline.py evaluate",
+    "test:notam": "npm --prefix apps/api run test:notam",
+    "test:notam:live": "npm --prefix apps/api run test:notam:live",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

@@ -912,7 +912,12 @@
     },
     "runways": [
       {
-        "id": "16/34",
+        "id": "16L/34R",
+        "heading": 0,
+        "length_m": 3549
+      },
+      {
+        "id": "16R/34L",
         "heading": 0,
         "length_m": 3549
       }
@@ -1527,6 +1532,23 @@
         "id": "06/24",
         "heading": 0,
         "length_m": 3000
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "TR-0018",
+    "city": "Bolu",
+    "name": "Bolu",
+    "coords": {
+      "lat": 40.748611,
+      "lng": 31.651667
+    },
+    "runways": [
+      {
+        "id": "06/24",
+        "heading": 0,
+        "length_m": 1895
       }
     ],
     "crossLimit": 15

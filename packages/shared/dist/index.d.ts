@@ -40,12 +40,77 @@ export type MetReport = {
     source: string;
 };
 export type NotamItem = {
-    raw: string;
-    severity: "Critical" | "Medium" | "Info";
-    impacts: ("runway" | "nav" | "ops_hours")[];
+    id?: string;
+    raw?: string;
+    text?: string;
+    severity?: "Critical" | "Medium" | "Info";
+    impacts?: ("runway" | "nav" | "ops_hours" | "airspace" | "lighting" | "surface" | "weather")[];
     valid_from_utc?: string;
     valid_to_utc?: string;
+    validFrom?: string;
+    validTo?: string;
+    summary?: string;
+    critical?: boolean;
+    synthetic?: boolean;
+    event?: {
+        key: string;
+        category: string;
+        severity: "Critical" | "Medium" | "Info";
+        critical: boolean;
+        impacts: string[];
+        validFrom: string;
+        validTo: string;
+        affectedRunway?: string;
+        score: number;
+        reason: string;
+        syntheticMode: "deterministic" | "llm_text" | "hybrid";
+    };
+};
+export type AiRiskModel = {
+    mlScore: number;
+    ruleScore: number;
+    finalScore: number;
+    notamSemanticScore: number;
+    weatherAssessment?: {
+        score: number;
+        trainedScore?: number | null;
+        heuristicScore?: number;
+        floorScore?: number;
+        floorApplied?: boolean;
+        floorReasons?: string[];
+        categories?: {
+            key: string;
+            label: string;
+            status: string;
+            detail: string;
+            present: boolean;
+            score: number;
+        }[];
+    };
+    confidence: {
+        level: "high" | "medium" | "low";
+        score: number;
+        summary: string;
+        factors: string[];
+    };
+    drivers: string[];
+    modelVersion: string;
+    limitedAdjustment: {
+        applied: boolean;
+        fromClass: string;
+        toClass: string;
+        reason: string;
+    };
+};
+export type AiBriefReport = {
     summary: string;
+    riskInterpretation: string;
+    notamImpacts: string[];
+    weatherConcerns: string[];
+    windConcerns: string[];
+    alternateCommentary: string;
+    confidenceNote: string;
+    limitedAdjustment: string;
 };
 export type Risk = {
     score: number;
@@ -54,6 +119,7 @@ export type Risk = {
     crosswind: number;
     reasons: string[];
     alternates: string[];
+    ml?: AiRiskModel;
 };
 export type BriefResponse = {
     airports: {
@@ -69,4 +135,5 @@ export type BriefResponse = {
         arr: NotamItem[];
     };
     risk: Risk;
+    aiReport?: AiBriefReport;
 };

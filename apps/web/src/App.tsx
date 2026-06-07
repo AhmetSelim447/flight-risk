@@ -3,7 +3,9 @@ import { BrowserRouter, Routes, Route, NavLink, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import SearchBar from "./components/SearchBar";
 import BriefPanel from "./components/BriefPanel";
+import HomeDashboard from "./components/HomeDashboard";
 import MapPage from "./pages/MapPage";
+import CalibrationPage from "./pages/CalibrationPage";
 import SettingsModal from "./components/SettingsModal";
 import { fetchBrief, type BriefResponse } from "./lib/api";
 
@@ -43,6 +45,7 @@ function HomePage() {
   return (
     <main className="max-w-6xl mx-auto w-full px-4 py-4 space-y-4">
       <SearchBar />
+      <HomeDashboard />
       <BriefPanel />
       <div className="flex justify-end">
         <Link
@@ -74,7 +77,7 @@ export default function App() {
                   `px-2 py-1 rounded ${isActive ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-200"}`
                 }
               >
-                Brief
+                Brifing
               </NavLink>
               <NavLink
                 to="/map"
@@ -82,18 +85,26 @@ export default function App() {
                   `px-2 py-1 rounded ${isActive ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-200"}`
                 }
               >
-                Map
+                Harita
+              </NavLink>
+              <NavLink
+                to="/calibration"
+                className={({ isActive }) =>
+                  `px-2 py-1 rounded ${isActive ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-200"}`
+                }
+              >
+                Kalibrasyon
               </NavLink>
             </nav>
 
-            {/* Sağ tarafa Settings */}
+            {/* Sağ tarafa ayarlar */}
             <div className="ml-auto">
               <button
                 onClick={() => setShowSettings(true)}
                 className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
-                title="Settings"
+                title="Ayarlar"
               >
-                Settings
+                Ayarlar
               </button>
             </div>
           </div>
@@ -110,6 +121,7 @@ export default function App() {
               </div>
             }
           />
+          <Route path="/calibration" element={<CalibrationPage />} />
         </Routes>
 
         {/* Modal */}

@@ -6,6 +6,8 @@
     "ingest:airports": "ts-node scripts/ingest-airports.ts",
     "build:api": "npm --prefix apps/api run ingest:airports && tsc -p apps/api/tsconfig.json",
     "dev": "nodemon --watch src --ext ts --exec \"ts-node src/index.ts\"",
+    "test:notam": "ts-node test/notam.provider.test.ts",
+    "test:notam:live": "ts-node test/notam.live-smoke.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },

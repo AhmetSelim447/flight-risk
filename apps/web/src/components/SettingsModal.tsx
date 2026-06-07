@@ -37,10 +37,10 @@ export default function SettingsModal({ open, onClose }: { open: boolean; onClos
 
       {/* Modal */}
       <div className="absolute left-1/2 top-1/2 w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-zinc-800 bg-zinc-900 p-4 shadow-2xl">
-        <div className="text-lg font-semibold">Settings</div>
+        <div className="text-lg font-semibold">Ayarlar</div>
         <div className="mt-4 space-y-4 text-sm">
           <div>
-            <div className="mb-2 text-zinc-400">Distance unit</div>
+            <div className="mb-2 text-zinc-400">Mesafe birimi</div>
             <div className="flex flex-wrap gap-2">
               {(["km", "mi", "nm"] as DistUnit[]).map((u) => (
                 <button
@@ -59,7 +59,7 @@ export default function SettingsModal({ open, onClose }: { open: boolean; onClos
           </div>
 
           <div>
-            <div className="mb-2 text-zinc-400">Wind unit</div>
+            <div className="mb-2 text-zinc-400">Ruzgar birimi</div>
             <div className="flex flex-wrap gap-2">
               {(["kt", "kmh", "mph", "mps"] as WindUnit[]).map((u) => (
                 <button
@@ -83,13 +83,13 @@ export default function SettingsModal({ open, onClose }: { open: boolean; onClos
             onClick={onClose}
             className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
           >
-            Cancel
+            Vazgec
           </button>
           <button
             onClick={onSave}
             className="rounded-md border border-sky-600/60 bg-sky-500/10 px-3 py-1.5 text-sm text-sky-200 hover:bg-sky-500/20"
           >
-            Save
+            Kaydet
           </button>
         </div>
       </div>

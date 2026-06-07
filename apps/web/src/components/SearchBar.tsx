@@ -101,10 +101,10 @@ export default function SearchBar() {
 
             window.dispatchEvent(new Event("flight-route-updated"));
           } catch (err: any) {
-            setBriefError(err?.message || "Brief alınamadı");
+            setBriefError(err?.message || "Brifing alınamadı");
           } finally {
             setBriefLoading(false);
-           
+            window.dispatchEvent(new Event("brief-loaded"));
           }
         })();
       }
@@ -117,6 +117,30 @@ export default function SearchBar() {
           if (p.arrLabel) setArrQ(p.arrLabel);
           if (p.depIcao) setDepIcao(p.depIcao);
           if (p.arrIcao) setArrIcao(p.arrIcao);
+
+          const dep = String(p.depIcao || "").toUpperCase();
+          const arr = String(p.arrIcao || "").toUpperCase();
+          const hasLastBrief = Boolean(localStorage.getItem("lastBrief"));
+          if (!hasLastBrief && /^[A-Z]{4}$/.test(dep) && /^[A-Z]{4}$/.test(arr)) {
+            void (async () => {
+              setBriefError(null);
+              setBriefLoading(true);
+              window.dispatchEvent(new Event("brief-loading"));
+              try {
+                const brief: BriefResponse = await fetchBrief(dep, arr);
+                localStorage.setItem("lastBrief", JSON.stringify(brief));
+                const d = brief.airports.dep.coords;
+                const a = brief.airports.arr.coords;
+                if (d && a) localStorage.setItem("lastRoute", JSON.stringify({ dep: d, arr: a }));
+                window.dispatchEvent(new Event("flight-route-updated"));
+              } catch (err: any) {
+                setBriefError(err?.message || "Brifing alınamadı");
+              } finally {
+                setBriefLoading(false);
+                window.dispatchEvent(new Event("brief-loaded"));
+              }
+            })();
+          }
         }
       }
     } catch {}
@@ -169,6 +193,28 @@ export default function SearchBar() {
       setArrQ(label);
       setArrIcao(a.icao);
       setArrMatches([]);
+    }
+  }
+
+  async function openSuggestions(side: PickSide) {
+    const q = side === "dep" ? depQ.trim() : arrQ.trim();
+    const query = q.length >= MIN_Q ? q : "LT";
+    try {
+      if (side === "dep") {
+        setDepLoading(true);
+        const r = await searchAirports(query);
+        setDepMatches(r.matches || []);
+      } else {
+        setArrLoading(true);
+        const r = await searchAirports(query);
+        setArrMatches(r.matches || []);
+      }
+    } catch {
+      if (side === "dep") setDepMatches([]);
+      else setArrMatches([]);
+    } finally {
+      if (side === "dep") setDepLoading(false);
+      else setArrLoading(false);
     }
   }
 
@@ -231,7 +277,7 @@ export default function SearchBar() {
 
       window.dispatchEvent(new Event("brief-loaded"));
     } catch (err: any) {
-      setBriefError(err?.message || "Brief alınamadı");
+      setBriefError(err?.message || "Brifing alınamadı");
       window.dispatchEvent(new Event("brief-loaded"));
     } finally {
       setBriefLoading(false);
@@ -242,13 +288,15 @@ export default function SearchBar() {
   return (
     <div ref={boxRef} className="border-b border-zinc-800">
       <div className="max-w-6xl mx-auto w-full px-4 py-3">
-        {/* GRID: DEP | SWAP | ARR | Brief + Share */}
+        {/* GRID: DEP | SWAP | ARR | Brifing + Paylas */}
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_auto] gap-2">
           {/* DEP */}
           <div className="relative">
-            <label className="block text-xs text-zinc-400 mb-1">Departure</label>
+            <label className="block text-xs text-zinc-400 mb-1">Kalkış</label>
             <input
               value={depQ}
+              onFocus={() => void openSuggestions("dep")}
+              onClick={() => void openSuggestions("dep")}
               onChange={(e) => {
                 setDepQ(e.target.value);
                 setDepIcao(null);
@@ -301,9 +349,11 @@ export default function SearchBar() {
 
           {/* ARR */}
           <div className="relative">
-            <label className="block text-xs text-zinc-400 mb-1">Arrival</label>
+            <label className="block text-xs text-zinc-400 mb-1">Varış</label>
             <input
               value={arrQ}
+              onFocus={() => void openSuggestions("arr")}
+              onClick={() => void openSuggestions("arr")}
               onChange={(e) => {
                 setArrQ(e.target.value);
                 setArrIcao(null);
@@ -342,13 +392,13 @@ export default function SearchBar() {
             )}
           </div>
 
-          {/* Brief Al */}
+          {/* Brifing Al */}
           <div className="flex items-end">
             <button
               onClick={onBrief}
               disabled={!canBrief}
               className="w-full md:w-auto rounded-md border border-sky-600/50 bg-sky-500/10 px-4 py-2 text-sm text-sky-200 hover:bg-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              title={!canBrief ? "DEP ve ARR gir" : "Brief Al"}
+              title={!canBrief ? "Kalkış ve varış gir" : "Brifing Al"}
             >
               {briefLoading ? (
                 <span className="inline-flex items-center gap-2">
@@ -356,12 +406,12 @@ export default function SearchBar() {
                   METAR yükleniyor…
                 </span>
               ) : (
-                "Brief Al"
+                "Brifing Al"
               )}
             </button>
           </div>
 
-          {/* Share */}
+          {/* Paylas */}
           <div className="flex items-end">
             <ShareButton />
           </div>

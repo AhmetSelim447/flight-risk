@@ -1,1 +1,13 @@
 node_modules
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+apps/api/dist/
+apps/web/dist/
+data/raw/
+data/processed/
+data/feedback/
+data/logs/
+services/nlp/models/*.json
