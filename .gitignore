@@ -11,3 +11,4 @@ data/processed/
 data/feedback/
 data/logs/
 services/nlp/models/*.json
+!services/nlp/models/risk_model.json

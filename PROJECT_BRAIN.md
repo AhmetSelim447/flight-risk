@@ -212,6 +212,7 @@ Implemented:
 - time split and airport holdout validator
 - model artifact loader in `services/nlp`
 - trained model participates in `/ai/risk/predict` when `services/nlp/models/risk_model.json` exists
+- `services/nlp/models/risk_model.json` is intentionally tracked in git so a fresh clone can run the trained baseline without retraining first.
 
 Current training result:
 
