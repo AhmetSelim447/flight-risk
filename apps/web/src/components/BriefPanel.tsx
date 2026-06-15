@@ -58,6 +58,100 @@ function notamText(n: UiNotamItem) {
   return String(n.text || n.raw || "").trim();
 }
 
+/** Ham ICAO NOTAM metnini Türkçe açıklamaya çevir */
+function parseNotamToTurkish(raw: string): string {
+  const t = raw.toUpperCase().trim();
+  const parts: string[] = [];
+
+  // Pist bilgisi
+  const rwyMatch = t.match(/RWY\s*(\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)/);
+  const rwy = rwyMatch ? `Pist ${rwyMatch[1]}` : "";
+
+  // ILS arızası
+  if (/ILS\s.*U\/S|ILS\s.*OUT OF SERVICE|ILS\s.*UNSERVICEABLE/.test(t)) {
+    const ilsType = t.match(/ILS\s+(GP|LOC|DME|IAEG|CAT\s*\w+)?/)?.[1] || "";
+    const ilsLabel = ilsType.includes("GP") ? "Glide Path" :
+                     ilsType.includes("LOC") ? "Localizer" :
+                     ilsType.includes("DME") ? "DME" :
+                     ilsType.includes("IAEG") ? "IAEG" : "ILS";
+    const dueMatch = t.match(/DUE\s+TO\s+(\w+)/);
+    const reason = dueMatch ? ` (${dueMatch[1] === "FLTCK" ? "uçuş kontrol nedeniyle" : dueMatch[1].toLowerCase()})` : "";
+    parts.push(`${ilsLabel} ${rwy ? rwy + " " : ""}hizmet dışı${reason}`);
+  }
+  // GNSS girişimi
+  else if (/GNSS\s*(INTERFERENCE|JAMMING|UNRELIABLE)/.test(t)) {
+    parts.push("GNSS girişimi/güvenilmezlik uyarısı — RNAV/RNP prosedürleri etkilenebilir");
+  }
+  // PAPI arızası
+  else if (/PAPI\s.*U\/S|PAPI\s.*OUT OF SERVICE/.test(t)) {
+    parts.push(`PAPI ${rwy ? rwy + " " : ""}hizmet dışı — görsel yaklaşma rehberliği azalmış`);
+  }
+  // VOR/DME arızası
+  else if (/(?:VOR|DME)\s.*U\/S|(?:VOR|DME)\s.*OUT OF SERVICE/.test(t)) {
+    const navType = /VOR/.test(t) && /DME/.test(t) ? "VOR/DME" : /VOR/.test(t) ? "VOR" : "DME";
+    const freqMatch = t.match(/(\d{3}\.\d+)\s*MHZ/);
+    const freq = freqMatch ? ` (${freqMatch[1]} MHz)` : "";
+    parts.push(`${navType}${freq} ${rwy ? rwy + " " : ""}hizmet dışı — konvansiyonel seyrüsefer etkilenebilir`);
+  }
+  // Pist kapalı
+  else if (/(?:RWY|RUNWAY)\s*\S*\s*(?:CLSD|CLOSED)/.test(t)) {
+    parts.push(`${rwy || "Pist"} kapalı`);
+  }
+  // Pist yüzeyi
+  else if (/(?:CONTAMINATED|WET|ICE|SNOW|STANDING WATER|SLIPPERY)/.test(t)) {
+    parts.push(`${rwy || "Pist"} yüzey durumu etkilenmiş — frenleme performansı kontrol edilmeli`);
+  }
+  // Işıklandırma
+  else if (/(?:LIGHT|LGT|ALS|REIL|VASI)\s.*(?:U\/S|OUT OF SERVICE|UNSERVICEABLE|MAINT)/.test(t)) {
+    parts.push(`Işıklandırma bakımda/arızalı ${rwy ? "(" + rwy + ")" : ""} — gece/düşük görüş koşulları etkilenebilir`);
+  }
+  // Havalimanı çalışma saatleri
+  else if (/AD\s*OPR\s*HR|OPERATING\s*HOURS/.test(t)) {
+    parts.push("Havalimanı çalışma saatleri kısıtlı — uçuş zamanı doğrulanmalı");
+  }
+  // Yakıt bilgisi
+  else if (/FUEL\s*(NOT\s*AVBL|UNAVAILABLE)/.test(t)) {
+    parts.push("Yakıt hizmeti mevcut değil");
+  }
+  // Engel uyarısı
+  else if (/OBST\s*(?:TOWER|LGT|CRANE|MAST)/.test(t)) {
+    const hgtMatch = t.match(/(\d+(?:\.\d+)?)\s*FT\s*(?:AGL|AMSL)/);
+    const hgt = hgtMatch ? ` — ${hgtMatch[1]} ft` : "";
+    parts.push(`Engel uyarısı${hgt} — alçak irtifa operasyonları etkilenebilir`);
+  }
+  // Hava sahası kısıtı
+  else if (/AIRSPACE|RESTRICTED|PROHIBITED|TRA|DANGER AREA/.test(t)) {
+    parts.push("Hava sahası kısıtı/faaliyet — rota ve irtifa etkilenebilir");
+  }
+  // Geçerlilik tarihleri
+  const validMatch = t.match(/(\d{10,12})\s+(\d{10,12})/);
+  if (validMatch && parts.length > 0) {
+    const from = validMatch[1];
+    const to = validMatch[2];
+    const fmtDate = (s: string) => {
+      if (s.length >= 10) {
+        const y = s.slice(0, 4);
+        const m = s.slice(4, 6);
+        const d = s.slice(6, 8);
+        const h = s.slice(8, 10);
+        return `${d}/${m}/${y} ${h}:00Z`;
+      }
+      return s;
+    };
+    parts.push(`Geçerlilik: ${fmtDate(from)} → ${fmtDate(to)}`);
+  }
+
+  if (parts.length > 0) {
+    return parts.join(". ") + ".";
+  }
+
+  // Fallback: ham metnin kısa versiyonu
+  if (raw.length > 10) {
+    return raw.length > 120 ? raw.slice(0, 117) + "..." : raw;
+  }
+  return "Operasyonel etki potansiyeli var; detay kontrol edilmeli.";
+}
+
 function labelize(value?: string) {
   return String(value || "")
     .replace(/_/g, " ")
@@ -277,7 +371,14 @@ function notamBulletReason(item: UiNotamItem) {
   if (impacts.has("surface")) return "Yüzey/frenleme etkisi var; performans planlaması kontrol edilmeli.";
   if (impacts.has("airspace")) return "Hava sahası etkisi var; rota ve ATC kısıtları kontrol edilmeli.";
   if (impacts.has("weather")) return "Hava bağlantılı uyarı var; güncel METAR/TAF ile birlikte kontrol edilmeli.";
-  return translateNotamReason(event?.reason) || "Operasyonel etkisi briefing sırasında kontrol edilmeli.";
+  // Fallback: event reason varsa çevir, yoksa NOTAM metninden Türkçe özet çıkar
+  const eventReason = translateNotamReason(event?.reason);
+  if (eventReason) return eventReason;
+  const rawText = notamText(item);
+  if (rawText.length > 10) {
+    return parseNotamToTurkish(rawText);
+  }
+  return `Operasyonel etki potansiyeli var; ilgili NOTAM detayı briefing sırasında kontrol edilmeli.`;
 }
 
 function notamReasonTitle(item: UiNotamItem) {
@@ -293,10 +394,19 @@ function criticalNotamReasonItems(depItems: UiNotamItem[], arrItems: UiNotamItem
     return `${side}: ${trCategory(item.event?.category || item.impacts?.[0] || "NOTAM")}${scope} - ${notamBulletReason(item)}`;
   };
 
-  return [
+  const allReasons = [
     ...depItems.filter((n) => n.critical || n.event?.critical).map((n) => make("DEP", n)),
     ...arrItems.filter((n) => n.critical || n.event?.critical).map((n) => make("ARR", n)),
-  ].slice(0, 6);
+  ];
+
+  // Aynı mesajları grupla: "DEP: NOTAM - X" 3 kez varsa → "DEP: 3× NOTAM - X"
+  const counts = new Map<string, number>();
+  for (const r of allReasons) counts.set(r, (counts.get(r) || 0) + 1);
+  const deduped: string[] = [];
+  for (const [msg, count] of counts) {
+    deduped.push(count > 1 ? `${msg.split(":")[0]}: ${count}× ${msg.split(": ").slice(1).join(": ")}` : msg);
+  }
+  return deduped.slice(0, 6);
 }
 
 function formatRiskDriver(value?: string) {
@@ -808,7 +918,7 @@ function visibilitySummary(vis?: number) {
 }
 
 function ceilingSummary(ceiling?: number) {
-  if (typeof ceiling !== "number") return { label: "Tavan verisi yok", tone: "text-zinc-300" };
+  if (typeof ceiling !== "number") return { label: "CAVOK / kırılma yok", tone: "text-emerald-200" };
   if (ceiling >= 3000) return { label: `${ceiling} ft / VFR rahat`, tone: "text-emerald-200" };
   if (ceiling >= 1500) return { label: `${ceiling} ft / sınırlı`, tone: "text-amber-200" };
   if (ceiling >= 800) return { label: `${ceiling} ft / düşük`, tone: "text-rose-200" };
@@ -953,14 +1063,14 @@ function buildRiskReportRows(input: {
     {
       parameter: "Kalkış tavanı",
       value: depCeiling.label,
-      status: typeof depParsed.ceiling !== "number" ? "eksik" : depParsed.ceiling < 1000 ? "risk" : depParsed.ceiling < 2000 ? "izle" : "iyi",
-      simple: typeof depParsed.ceiling !== "number" ? "Kalkış tavanı yok veya ayrıştırılamadı." : depParsed.ceiling < 2000 ? "Kalkış tavanı planı etkileyebilir." : "Kalkış tavanı rahat görünüyor.",
+      status: typeof depParsed.ceiling !== "number" ? "iyi" : depParsed.ceiling < 1000 ? "risk" : depParsed.ceiling < 2000 ? "izle" : "iyi",
+      simple: typeof depParsed.ceiling !== "number" ? "Kalkışta tavan kırılması yok (CAVOK veya yüksek bulut)." : depParsed.ceiling < 2000 ? "Kalkış tavanı planı etkileyebilir." : "Kalkış tavanı rahat görünüyor.",
     },
     {
       parameter: "Varış tavanı",
       value: arrCeiling.label,
-      status: typeof arrParsed.ceiling !== "number" ? "eksik" : arrParsed.ceiling < 1000 ? "risk" : arrParsed.ceiling < 2000 ? "izle" : "iyi",
-      simple: typeof arrParsed.ceiling !== "number" ? "Varış tavanı yok veya ayrıştırılamadı." : arrParsed.ceiling < 2000 ? "Varış tavanı takip edilmeli." : "Varış tavanı uygun görünüyor.",
+      status: typeof arrParsed.ceiling !== "number" ? "iyi" : arrParsed.ceiling < 1000 ? "risk" : arrParsed.ceiling < 2000 ? "izle" : "iyi",
+      simple: typeof arrParsed.ceiling !== "number" ? "Varışta tavan kırılması yok (CAVOK veya yüksek bulut)." : arrParsed.ceiling < 2000 ? "Varış tavanı takip edilmeli." : "Varış tavanı uygun görünüyor.",
     },
     {
       parameter: "Yan rüzgar",
@@ -1720,9 +1830,29 @@ const confidenceLabel =
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
-              <span className={`rounded-full border px-3 py-1 text-sm font-semibold ${riskBand.tone}`}>
-                {brief.risk.score}/100
-              </span>
+              {/* Dairesel Risk Gauge */}
+              <div className="relative flex h-20 w-20 items-center justify-center">
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: `conic-gradient(
+                      ${brief.risk.score >= 70 ? '#f43f5e' : brief.risk.score >= 40 ? '#f59e0b' : '#10b981'} 0deg,
+                      ${brief.risk.score >= 70 ? '#f43f5e' : brief.risk.score >= 40 ? '#f59e0b' : '#10b981'} ${brief.risk.score * 3.6}deg,
+                      rgba(63, 63, 70, 0.3) ${brief.risk.score * 3.6}deg,
+                      rgba(63, 63, 70, 0.3) 360deg
+                    )`,
+                    transition: 'background 0.6s ease-out',
+                  }}
+                />
+                <div className="absolute inset-[5px] rounded-full bg-zinc-900 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className={`text-xl font-bold ${brief.risk.score >= 70 ? 'text-rose-300' : brief.risk.score >= 40 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                      {brief.risk.score}
+                    </div>
+                    <div className="text-[9px] text-zinc-500">/100</div>
+                  </div>
+                </div>
+              </div>
               <span className={`rounded-full border px-2 py-0.5 text-[11px] ${confidenceTone.badge}`}>
                 Güven: {confidenceLabel}
               </span>
@@ -1772,6 +1902,53 @@ const confidenceLabel =
               </table>
             </div>
           </div>
+
+          {/* AI Rapor Özeti — her zaman görünür */}
+          {aiReport?.summary ? (
+            <div className="mt-3 rounded-lg border border-sky-700/25 bg-sky-500/[0.06] p-3">
+              <div className="mb-1 flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-sky-300/80">
+                  AI Değerlendirme Özeti
+                </span>
+                {ml?.modelVersion ? (
+                  <span className="rounded-full border border-sky-600/30 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-200">
+                    {ml.modelVersion}
+                  </span>
+                ) : null}
+              </div>
+              <div className="text-sm leading-6 text-zinc-100">{aiReport.summary}</div>
+              {aiReport?.riskInterpretation ? (
+                <div className="mt-2 text-sm leading-6 text-zinc-300">{aiReport.riskInterpretation}</div>
+              ) : null}
+              {Array.isArray(aiReport?.weatherConcerns) && aiReport.weatherConcerns.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {aiReport.weatherConcerns.slice(0, 3).map((concern, idx) => (
+                    <span
+                      key={`weather-concern-${idx}`}
+                      className="rounded-full border border-amber-600/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-100"
+                    >
+                      {concern}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {Array.isArray(aiReport?.notamImpacts) && aiReport.notamImpacts.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {aiReport.notamImpacts.slice(0, 4).map((impact, idx) => (
+                    <span
+                      key={`notam-impact-${idx}`}
+                      className="rounded-full border border-rose-600/30 bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-100"
+                    >
+                      {impact}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-2 text-[10px] text-zinc-500">
+                Karar destek amaçlıdır; operasyonel otorite yerine geçmez.
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-3 flex justify-end">
             <button

@@ -12,3 +12,20 @@ data/feedback/
 data/logs/
 services/nlp/models/*.json
 !services/nlp/models/risk_model.json
+
+# Geçici dosyalar
+~$*
+*.tmp
+test_out.pptx
+
+# Sunum ve tez dosyaları (büyük binary)
+*.pptx
+*.docx
+*.txt
+!README.md
+!*.md
+
+# Üretilmiş görseller ve render çıktıları
+extracted_images/
+generated_presentation_images/
+docx_render_*/

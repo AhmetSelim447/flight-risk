@@ -57,10 +57,43 @@ const inlineSeed: AirportRow[] = [
     ],
     crossLimit: 15,
   },
+  {
+    icao: "LTBJ",
+    iata: "ADB",
+    city: "Izmir",
+    name: "Adnan Menderes",
+    coords: { lat: 38.292, lng: 27.157 },
+    runways: [
+      { id: "16L/34R", heading: 160, length_m: 3240 },
+      { id: "16R/34L", heading: 160, length_m: 3240 },
+    ],
+    crossLimit: 15,
+  },
+  {
+    icao: "LTBS",
+    iata: "DLM",
+    city: "Mugla",
+    name: "Dalaman",
+    coords: { lat: 36.713, lng: 28.792 },
+    runways: [{ id: "01/19", heading: 10, length_m: 3000 }],
+    crossLimit: 15,
+  },
+  {
+    icao: "LTCA",
+    iata: "EZS",
+    city: "Elazig",
+    name: "Elazig Airport",
+    coords: { lat: 38.598, lng: 39.283 },
+    runways: [
+      { id: "07/25", heading: 70, length_m: 3000 },
+      { id: "13/31", heading: 130, length_m: 3000 },
+    ],
+    crossLimit: 15,
+  },
 ];
 
 // ---- Bellek içi cache + kaynak etiketi ----
-let AIRPORTS_CACHE: AirportRow[] = inlineSeed;
+let AIRPORTS_CACHE: AirportRow[] = [];
 let AIRPORTS_SOURCE: "inline" | "cache" | "remote" = "inline";
 let AIRPORTS_LOADED_AT = 0;
 
@@ -198,23 +231,40 @@ export function byICAO(icao: string) {
 }
 
 /**
+ * Türkçe karakter normalizasyonu: İ→I, ı→I, Ş→S, Ğ→G, Ü→U, Ö→O, Ç→C
+ * Böylece "İstanbul" ve "Istanbul" aynı sonucu verir.
+ */
+function normalizeTR(s: string): string {
+  return s
+    .replace(/İ/g, "I")
+    .replace(/ı/g, "I")
+    .replace(/Ş/g, "S").replace(/ş/g, "S")
+    .replace(/Ğ/g, "G").replace(/ğ/g, "G")
+    .replace(/Ü/g, "U").replace(/ü/g, "U")
+    .replace(/Ö/g, "O").replace(/ö/g, "O")
+    .replace(/Ç/g, "C").replace(/ç/g, "C")
+    .toUpperCase();
+}
+
+/**
  * SAFE search: asla throw etmez.
  * - Min 2 char
  * - Ranking: icao exact / iata exact / prefix / includes...
+ * - Türkçe karakter desteği (İ/I, Ş/S, Ğ/G vb.)
  */
 export function searchAirports(q: string, limit = 50): AirportRow[] {
   try {
-    const Q = String(q || "").trim().toUpperCase();
+    const Q = normalizeTR(String(q || "").trim());
     if (Q.length < 2) return [];
 
     const list = AIRPORTS_CACHE ?? [];
     if (!Array.isArray(list) || list.length === 0) return [];
 
     const score = (a: AirportRow) => {
-      const icao = (a.icao || "").toUpperCase();
-      const iata = (a.iata || "").toUpperCase();
-      const city = (a.city || "").toUpperCase();
-      const name = (a.name || "").toUpperCase();
+      const icao = normalizeTR(a.icao || "");
+      const iata = normalizeTR(a.iata || "");
+      const city = normalizeTR(a.city || "");
+      const name = normalizeTR(a.name || "");
 
       if (icao === Q) return 0;
       if (iata === Q) return 1;
@@ -233,10 +283,10 @@ export function searchAirports(q: string, limit = 50): AirportRow[] {
 
     return list
       .filter((a) => {
-        const icao = (a.icao || "").toUpperCase();
-        const iata = (a.iata || "").toUpperCase();
-        const city = (a.city || "").toUpperCase();
-        const name = (a.name || "").toUpperCase();
+        const icao = normalizeTR(a.icao || "");
+        const iata = normalizeTR(a.iata || "");
+        const city = normalizeTR(a.city || "");
+        const name = normalizeTR(a.name || "");
         return icao.includes(Q) || iata.includes(Q) || city.includes(Q) || name.includes(Q);
       })
       .sort((a, b) => score(a) - score(b))

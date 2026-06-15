@@ -7,6 +7,8 @@ import json
 import math
 import os
 import re
+import urllib.error
+import urllib.request
 
 
 Severity = Literal["Critical", "Medium", "Info"]
@@ -56,6 +58,7 @@ class RiskPredictRequest(BaseModel):
     activeRunway: Optional[Dict[str, Any]] = None
     wind: Dict[str, Any] = Field(default_factory=dict)
     notams: Dict[str, List[NotamIn]] = Field(default_factory=dict)
+    notamAnalysis: Dict[str, List[NotamOut]] = Field(default_factory=dict)
     confidence: Optional[Dict[str, Any]] = None
 
 
@@ -105,6 +108,34 @@ app = FastAPI(title="Flight Risk AI Service")
 _RISK_MODEL_CACHE: Optional[Dict[str, Any]] = None
 
 
+def load_env_file(path: Path, override: bool = False) -> None:
+    if not path.exists():
+        return
+    try:
+        for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if not key:
+                continue
+            if override or key not in os.environ:
+                os.environ[key] = value
+    except Exception:
+        return
+
+
+def load_runtime_env() -> None:
+    root = Path(__file__).resolve().parents[2]
+    load_env_file(root / "apps" / "api" / ".env", override=False)
+    load_env_file(root / "apps" / "api" / ".env.local", override=True)
+
+
+load_runtime_env()
+
+
 @app.get("/")
 def root():
     return health()
@@ -118,6 +149,13 @@ def health():
         "service": "flight-risk-ai",
         "modelVersion": model.get("modelVersion") if model else "hybrid-proxy-v1",
         "trainedModelLoaded": bool(model),
+        "llm": {
+            "enabled": llm_available(),
+            "provider": os.environ.get("LLM_PROVIDER", "none"),
+            "model": os.environ.get("OPENAI_MODEL", ""),
+            "notamParse": env_flag("LLM_NOTAM_PARSE", True),
+            "briefReport": env_flag("LLM_BRIEF_REPORT", True),
+        },
     }
 
 
@@ -136,6 +174,95 @@ def risk_class(score: int) -> RiskClass:
     if score >= 40:
         return "yellow"
     return "green"
+
+
+def env_flag(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def llm_available() -> bool:
+    provider = os.environ.get("LLM_PROVIDER", "openai").strip().lower()
+    return env_flag("LLM_ENABLED", False) and provider == "openai" and bool(os.environ.get("OPENAI_API_KEY"))
+
+
+def parse_json_object(text: str) -> Optional[Dict[str, Any]]:
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE).strip()
+        raw = re.sub(r"\s*```$", "", raw).strip()
+    try:
+        value = json.loads(raw)
+        return value if isinstance(value, dict) else None
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                value = json.loads(raw[start : end + 1])
+                return value if isinstance(value, dict) else None
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+def call_openai_json(system_prompt: str, user_payload: Dict[str, Any], max_tokens: int = 900) -> Optional[Dict[str, Any]]:
+    if not llm_available():
+        return None
+
+    base_url = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1").rstrip("/")
+    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+    timeout_ms = int(os.environ.get("OPENAI_TIMEOUT_MS", "8000") or 8000)
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": json.dumps(user_payload, ensure_ascii=False, separators=(",", ":")),
+            },
+        ],
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+        "response_format": {"type": "json_object"},
+    }
+
+    req = urllib.request.Request(
+        f"{base_url}/chat/completions",
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=max(1, timeout_ms / 1000)) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, ValueError):
+        return None
+
+    try:
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return parse_json_object(str(content))
+
+
+def pydantic_to_dict(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        if hasattr(value, "model_dump"):
+            return value.model_dump()
+        return value.dict()
+    if isinstance(value, list):
+        return [pydantic_to_dict(v) for v in value]
+    if isinstance(value, dict):
+        return {k: pydantic_to_dict(v) for k, v in value.items()}
+    return value
 
 
 def load_risk_model() -> Optional[Dict[str, Any]]:
@@ -242,6 +369,159 @@ def parse_notam_text(raw: str, explicit_critical: Optional[bool] = None) -> Nota
     )
 
 
+SEVERITY_ORDER: Dict[Severity, int] = {"Info": 0, "Medium": 1, "Critical": 2}
+IMPACT_ALIASES: Dict[str, Impact] = {
+    "runway": "runway",
+    "rwy": "runway",
+    "pist": "runway",
+    "nav": "nav",
+    "navigation": "nav",
+    "navaid": "nav",
+    "ils": "nav",
+    "vor": "nav",
+    "dme": "nav",
+    "papi": "nav",
+    "gnss": "nav",
+    "ops_hours": "ops_hours",
+    "ops hours": "ops_hours",
+    "operating_hours": "ops_hours",
+    "hours": "ops_hours",
+    "airspace": "airspace",
+    "lighting": "lighting",
+    "lights": "lighting",
+    "surface": "surface",
+    "braking": "surface",
+    "weather": "weather",
+}
+
+
+def severity_from_score(score: int) -> Severity:
+    if score >= 45:
+        return "Critical"
+    if score >= 18:
+        return "Medium"
+    return "Info"
+
+
+def normalize_severity(value: Any) -> Severity:
+    raw = str(value or "").strip().lower()
+    if raw in {"critical", "high", "risk", "kritik", "yüksek", "yuksek"}:
+        return "Critical"
+    if raw in {"medium", "moderate", "orta", "watch", "caution"}:
+        return "Medium"
+    return "Info"
+
+
+def normalize_impacts(values: Any) -> List[Impact]:
+    result: List[Impact] = []
+    if not isinstance(values, list):
+        values = [values]
+    for value in values:
+        key = str(value or "").strip().lower().replace("-", "_")
+        mapped = IMPACT_ALIASES.get(key) or IMPACT_ALIASES.get(key.replace("_", " "))
+        if mapped and mapped not in result:
+            result.append(mapped)
+    return result
+
+
+def merge_notam_guardrails(candidate: NotamOut, fallback: NotamOut, explicit_critical: Optional[bool]) -> NotamOut:
+    score = clamp_score(max(candidate.score, fallback.score))
+    severity = candidate.severity
+    if SEVERITY_ORDER[fallback.severity] > SEVERITY_ORDER[severity]:
+        severity = fallback.severity
+    if SEVERITY_ORDER[severity_from_score(score)] > SEVERITY_ORDER[severity]:
+        severity = severity_from_score(score)
+
+    impacts = normalize_impacts(candidate.impacts)
+    for impact in fallback.impacts:
+        if impact not in impacts:
+            impacts.append(impact)
+
+    return NotamOut(
+        raw=fallback.raw,
+        severity=severity,
+        impacts=impacts,
+        summary=(candidate.summary or fallback.summary).strip()[:240],
+        operationalImpact=(candidate.operationalImpact or fallback.operationalImpact).strip()[:260],
+        score=score,
+        valid_from_utc=candidate.valid_from_utc or fallback.valid_from_utc,
+        valid_to_utc=candidate.valid_to_utc or fallback.valid_to_utc,
+    )
+
+
+def llm_parse_notams(req: ParseRequest) -> Optional[List[NotamOut]]:
+    if not env_flag("LLM_NOTAM_PARSE", True) or not llm_available() or not req.items:
+        return None
+
+    fallback = [parse_notam_text(item_text(i), i.critical) for i in req.items]
+    system_prompt = (
+        "You are an aviation NOTAM semantic parser for a flight briefing assistant. "
+        "Return only valid JSON. Do not decide whether a flight is safe and do not invent data. "
+        "Use only the supplied NOTAM text. Classify operational impact for pilots and dispatchers. "
+        "Allowed severity values: Critical, Medium, Info. Allowed impacts: runway, nav, ops_hours, "
+        "airspace, lighting, surface, weather. Score must be 0-100. Critical means runway closure, "
+        "approach aid outage, surface/braking issue, airspace restriction, ops-hour restriction, or a directly relevant hazard."
+    )
+    payload = {
+        "schema": {
+            "items": [
+                {
+                    "index": 0,
+                    "severity": "Critical|Medium|Info",
+                    "impacts": ["runway|nav|ops_hours|airspace|lighting|surface|weather"],
+                    "summary": "Turkish short summary",
+                    "operationalImpact": "Turkish operational implication",
+                    "score": 0,
+                    "valid_from_utc": None,
+                    "valid_to_utc": None,
+                }
+            ]
+        },
+        "items": [
+            {
+                "index": idx,
+                "raw": item_text(item),
+                "explicitCritical": bool(item.critical),
+            }
+            for idx, item in enumerate(req.items)
+        ],
+    }
+    parsed = call_openai_json(system_prompt, payload, max_tokens=1400)
+    raw_items = parsed.get("items") if isinstance(parsed, dict) else None
+    if not isinstance(raw_items, list):
+        return None
+
+    by_index: Dict[int, Dict[str, Any]] = {}
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            continue
+        try:
+            by_index[int(raw_item.get("index"))] = raw_item
+        except (TypeError, ValueError):
+            continue
+
+    result: List[NotamOut] = []
+    for idx, item in enumerate(req.items):
+        candidate_raw = by_index.get(idx)
+        if not candidate_raw:
+            return None
+        try:
+            candidate = NotamOut(
+                raw=item_text(item),
+                severity=normalize_severity(candidate_raw.get("severity")),
+                impacts=normalize_impacts(candidate_raw.get("impacts")),
+                summary=str(candidate_raw.get("summary") or fallback[idx].summary),
+                operationalImpact=str(candidate_raw.get("operationalImpact") or fallback[idx].operationalImpact),
+                score=clamp_score(float(candidate_raw.get("score") or 0)),
+                valid_from_utc=candidate_raw.get("valid_from_utc") or None,
+                valid_to_utc=candidate_raw.get("valid_to_utc") or None,
+            )
+        except Exception:
+            return None
+        result.append(merge_notam_guardrails(candidate, fallback[idx], item.critical))
+    return result
+
+
 @app.post("/nlp/notam/parse", response_model=List[NotamOut])
 def legacy_parse(req: ParseRequest):
     return [parse_notam_text(item_text(i), i.critical) for i in req.items]
@@ -249,7 +529,7 @@ def legacy_parse(req: ParseRequest):
 
 @app.post("/ai/notam/parse", response_model=List[NotamOut])
 def parse_notams(req: ParseRequest):
-    return [parse_notam_text(item_text(i), i.critical) for i in req.items]
+    return llm_parse_notams(req) or [parse_notam_text(item_text(i), i.critical) for i in req.items]
 
 
 @app.post("/ai/notam/render", response_model=NotamRenderResponse)
@@ -616,9 +896,44 @@ def estimate_wind_score(wind: Dict[str, Any]) -> float:
     return min(score, 100)
 
 
-def analyze_notam_groups(notams: Dict[str, List[NotamIn]]) -> Dict[str, Any]:
-    dep = [parse_notam_text(item_text(i), i.critical) for i in notams.get("dep", [])]
-    arr = [parse_notam_text(item_text(i), i.critical) for i in notams.get("arr", [])]
+def coerce_notam_out(value: Any) -> Optional[NotamOut]:
+    if isinstance(value, NotamOut):
+        return value
+    if isinstance(value, dict):
+        try:
+            return NotamOut(
+                raw=str(value.get("raw") or ""),
+                severity=normalize_severity(value.get("severity")),
+                impacts=normalize_impacts(value.get("impacts")),
+                summary=str(value.get("summary") or ""),
+                operationalImpact=str(value.get("operationalImpact") or ""),
+                score=clamp_score(float(value.get("score") or 0)),
+                valid_from_utc=value.get("valid_from_utc") or None,
+                valid_to_utc=value.get("valid_to_utc") or None,
+            )
+        except Exception:
+            return None
+    return None
+
+
+def analyzed_notam_group(
+    raw_items: List[NotamIn],
+    parsed_items: Optional[List[NotamOut]],
+) -> List[NotamOut]:
+    parsed: List[NotamOut] = []
+    for item in parsed_items or []:
+        coerced = coerce_notam_out(item)
+        if coerced:
+            parsed.append(coerced)
+    if parsed:
+        return parsed
+    return [parse_notam_text(item_text(i), i.critical) for i in raw_items]
+
+
+def analyze_notam_groups(notams: Dict[str, List[NotamIn]], parsed_notams: Optional[Dict[str, List[NotamOut]]] = None) -> Dict[str, Any]:
+    parsed_notams = parsed_notams or {}
+    dep = analyzed_notam_group(notams.get("dep", []), parsed_notams.get("dep"))
+    arr = analyzed_notam_group(notams.get("arr", []), parsed_notams.get("arr"))
     all_items = dep + arr
     score = max([n.score for n in all_items], default=0)
     critical_count = sum(1 for n in all_items if n.severity == "Critical")
@@ -652,7 +967,7 @@ def risk_predict(req: RiskPredictRequest):
     )
     weather_score = int(weather_assessment["score"])
     wind_score = estimate_wind_score(req.wind)
-    notam = analyze_notam_groups(req.notams)
+    notam = analyze_notam_groups(req.notams, req.notamAnalysis)
     notam_score = int(notam["score"])
 
     # Tabular proxy model: feature-weighted operational risk until a trained artifact is available.
@@ -738,8 +1053,85 @@ def risk_predict(req: RiskPredictRequest):
     )
 
 
-@app.post("/ai/brief/report", response_model=BriefReportResponse)
-def brief_report(req: BriefReportRequest):
+def compact_brief_payload(req: BriefReportRequest) -> Dict[str, Any]:
+    brief = req.brief if isinstance(req.brief, dict) else {}
+    risk = brief.get("risk", {}) if isinstance(brief, dict) else {}
+    met = brief.get("met", {}) if isinstance(brief, dict) else {}
+    taf = brief.get("taf", {}) if isinstance(brief, dict) else {}
+    airports = brief.get("airports", {}) if isinstance(brief, dict) else {}
+    notam_analysis = pydantic_to_dict(req.notamAnalysis)
+    return {
+        "airports": airports,
+        "risk": {
+            "score": risk.get("score"),
+            "class": risk.get("class"),
+            "headwind": risk.get("headwind"),
+            "crosswind": risk.get("crosswind"),
+            "primary_driver": risk.get("primary_driver"),
+            "reasons": risk.get("reasons", [])[:8] if isinstance(risk.get("reasons"), list) else [],
+            "alternates": risk.get("alternates", [])[:3] if isinstance(risk.get("alternates"), list) else [],
+        },
+        "riskPrediction": pydantic_to_dict(req.riskPrediction) if req.riskPrediction else None,
+        "met": {
+            "dep": (met.get("dep") or [])[:1] if isinstance(met, dict) else [],
+            "arr": (met.get("arr") or [])[:1] if isinstance(met, dict) else [],
+        },
+        "taf": {
+            "dep": (taf.get("dep") or [])[:1] if isinstance(taf, dict) else [],
+            "arr": (taf.get("arr") or [])[:1] if isinstance(taf, dict) else [],
+        },
+        "notamAnalysis": {
+            "dep": (notam_analysis.get("dep") or [])[:6] if isinstance(notam_analysis, dict) else [],
+            "arr": (notam_analysis.get("arr") or [])[:6] if isinstance(notam_analysis, dict) else [],
+        },
+    }
+
+
+def llm_brief_report(req: BriefReportRequest) -> Optional[BriefReportResponse]:
+    if not env_flag("LLM_BRIEF_REPORT", True) or not llm_available():
+        return None
+    system_prompt = (
+        "You are a Turkish aviation briefing assistant. Return only valid JSON. "
+        "Use only the provided METAR/TAF/NOTAM/risk data. Do not say the flight is safe, approved, "
+        "or cancelled. Do not create or change risk scores. Explain the existing hybrid AI result in "
+        "clear Turkish for a pilot/dispatcher. Keep text concise and operational. Mention that this is "
+        "decision support and does not replace official operational authority."
+    )
+    payload = {
+        "schema": {
+            "summary": "short Turkish executive summary",
+            "riskInterpretation": "why the given score/class was produced",
+            "notamImpacts": ["short Turkish NOTAM impact bullets"],
+            "weatherConcerns": ["short Turkish weather bullets"],
+            "windConcerns": ["short Turkish wind bullets"],
+            "alternateCommentary": "short Turkish alternate note",
+            "confidenceNote": "short Turkish confidence note",
+            "limitedAdjustment": "short Turkish limited adjustment note",
+        },
+        "brief": compact_brief_payload(req),
+    }
+    parsed = call_openai_json(system_prompt, payload, max_tokens=1200)
+    if not isinstance(parsed, dict):
+        return None
+    try:
+        report = BriefReportResponse(
+            summary=str(parsed.get("summary") or "").strip()[:360],
+            riskInterpretation=str(parsed.get("riskInterpretation") or "").strip()[:520],
+            notamImpacts=[str(x).strip()[:240] for x in parsed.get("notamImpacts", []) if str(x).strip()][:6],
+            weatherConcerns=[str(x).strip()[:220] for x in parsed.get("weatherConcerns", []) if str(x).strip()][:5],
+            windConcerns=[str(x).strip()[:180] for x in parsed.get("windConcerns", []) if str(x).strip()][:4],
+            alternateCommentary=str(parsed.get("alternateCommentary") or "").strip()[:300],
+            confidenceNote=str(parsed.get("confidenceNote") or "").strip()[:260],
+            limitedAdjustment=str(parsed.get("limitedAdjustment") or "").strip()[:260],
+        )
+        if not report.summary or not report.riskInterpretation:
+            return None
+        return report
+    except Exception:
+        return None
+
+
+def deterministic_brief_report(req: BriefReportRequest) -> BriefReportResponse:
     brief = req.brief
     risk = brief.get("risk", {}) if isinstance(brief, dict) else {}
     airports = brief.get("airports", {}) if isinstance(brief, dict) else {}
@@ -805,3 +1197,8 @@ def brief_report(req: BriefReportRequest):
         confidenceNote=f"Confidence: {confidence.get('level', 'medium')} ({confidence.get('score', '-')}).",
         limitedAdjustment=adjustment_text,
     )
+
+
+@app.post("/ai/brief/report", response_model=BriefReportResponse)
+def brief_report(req: BriefReportRequest):
+    return llm_brief_report(req) or deterministic_brief_report(req)

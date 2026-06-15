@@ -1,6 +1,6 @@
 # Project Brain
 
-Last updated: 2026-06-07
+Last updated: 2026-06-11
 
 ## Operating Contract
 
@@ -19,405 +19,120 @@ Do not repeat these known mistakes:
 - Do not rank alternate airports around departure for an arrival problem. Alternate suggestions must be destination-centered around ARR.
 - Do not start duplicate local services on the same ports. Reuse running services or show the user which process owns the port.
 
+---
+
 ## Product Goal
 
 flight-risk is a pre-flight operational briefing and risk-support assistant. It does not replace pilot, dispatcher, operator, ATC, AIS/AIM, or official operational authority decisions.
 
 The target system is a hybrid assistant:
 
-- deterministic rule engine for explainable baseline risk
-- ML/DL-style tabular risk model for METAR-derived operational weather risk
-- NOTAM semantic parser and impact classifier
-- LLM-style report layer for readable briefing explanations
-- strict fallback behavior when AI or external providers fail
+- Deterministic rule engine for explainable baseline risk.
+- ML/DL-style tabular risk model for METAR-derived operational weather risk (trained on 2M+ records).
+- NOTAM semantic parser and impact classifier.
+- OpenAI LLM layer (JSON Mode) for structured NOTAM parsing and Turkish briefing reports.
+- Strict fallback behavior when AI or external providers fail.
+
+---
 
 ## Current Architecture
 
 ```text
-Web UI
-  -> Express API /brief orchestrator
-  -> Calibration page /calibration
-  -> Briefing feedback collector
-    -> METAR/TAF provider chain
-    -> NOTAM provider
-    -> rule risk engine
-    -> AI service /ai/notam/parse
-    -> AI service /ai/risk/predict
-    -> AI service /ai/brief/report
-  -> briefing screen and PDF
+Web UI (React + Vite)
+  -> Home operational dashboard
+  -> Briefing form & summary (Turkish-first)
+  -> Leaflet interactive map (route, active runway, destination alternates, live traffic)
+  -> Calibration dashboard (/calibration)
+  -> Manual briefing feedback collector
 
-services/nlp
-  -> NOTAM parser
-  -> trained METAR risk model loader
-  -> hybrid risk predictor
-  -> AI briefing report
+Express API (Orchestrator - Port 4000)
+  -> /brief endpoint orchestrating METAR/TAF/NOTAM data and risk scores
+  -> /traffic endpoint (OpenSky API live traffic querying in routing bounding boxes)
+  -> /feedback endpoint saving user ratings to local JSONL
+
+Python AI Service (FastAPI - Port 8000)
+  -> /ai/risk/predict (loads tabular ML model + guardrails)
+  -> /ai/notam/parse (optional OpenAI semantic parsing with deterministic fallback)
+  -> /ai/brief/report (optional OpenAI Turkish briefing summary with deterministic fallback)
 
 tools/ml_pipeline.py
-  -> historical METAR download
-  -> live METAR/TAF snapshot collection
-  -> ML dataset build
-  -> baseline model training
-  -> time split and airport holdout validation
-
-data/feedback
-  -> local manual briefing feedback JSONL
+  -> Historical METAR downloader & live TAF snapshot collector
+  -> ML dataset builder & Multinomial Logistic Regression model trainer (2M+ rows, ROC-AUC 0.993)
 ```
+
+---
 
 ## Data Sources
 
 ### Live METAR/TAF
+- **Primary Source**: AviationWeather Data API.
+- **Fallbacks**: CheckWX, AVWX, NOAA text endpoint.
 
-Primary source:
+### Live NOTAM & SkyLink API
+- **Simulated Mode**: Default deterministic simulated NOTAM generator (marked as demo/test synthetic data in UI).
+- **Live Mode**: SkyLink RapidAPI `0.3.1` airport NOTAM service (`GET https://skylink-api.p.rapidapi.com/notams/{ICAO}`). Configured via `NOTAM_PROVIDER=skylink` and `SKYLINK_API_KEY` in `.env.local`.
+- **Fallbacks**: If the live API key is absent or the request fails, the system automatically falls back to simulated/synthetic NOTAMs.
 
-- AviationWeather Data API
+### LLM Runtime & OpenAI API
+- Enabled via `LLM_PROVIDER=openai`, `LLM_ENABLED=true`, and `OPENAI_API_KEY` in `.env.local` (uses `gpt-4o-mini` by default).
+- Converts raw NOTAM strings into structured JSON (severity, impact categories, score, summary) and compiles Turkish flight briefings under strict schema validation and deterministic fallback (uses local template-based generation if validation or the API fails).
 
-Fallback chain:
+---
 
-1. AviationWeather
-2. CheckWX, if token exists
-3. AVWX, if token exists
-4. NOAA text endpoint
+## Fixed Bugs & Improvements (Recent)
 
-`metar-taf.com` is not used as a production provider.
+### 1. Offline Airport Cache Load Fix
+- **Bug**: `AIRPORTS_CACHE` in the Express API was initialized directly to the 4 default airports (`inlineSeed`), causing `hasData` to be `true` on startup. This completely bypassed the local disk cache loader (`loadAirportsFromCache`), meaning `airports.generated.json` was never loaded. If the remote fetch from `ourairports.com` failed (which it does locally due to timeout restrictions), the server remained locked to only 4 default airports, making other airports like Elazığ (`LTCA`) unsearchable.
+- **Fix**: Initialized `AIRPORTS_CACHE = []` so that the local disk cache is successfully loaded first, making all 50+ Turkish airports searchable in the React UI.
 
-### Historical METAR Dataset
+### 2. toNumber Empty String Conversion Bug
+- **Bug**: The CSV parser's `toNumber` helper did `Number(String(x ?? "").trim())` on empty CSV fields. In JS/TS, `Number("")` evaluates to `0` instead of `NaN` or `undefined`. Because of this, empty runway heading fields in the CSV were parsed as `0` instead of falling back to designator-based parsing (like `07/25` -> `70` deg). This caused all runway headings in the database to be `0` degrees.
+- **Fix**: Modified `toNumber` to return `undefined` for empty strings, allowing correct fallback designator parsing to take place.
 
-Historical METAR training data is downloaded from Iowa Mesonet ASOS/METAR archive.
+### 3. Repaired Runway Headings Cache
+- Repaired all `0` headings in the three `airports.generated.json` cache files in the workspace (109 headings in total). The cache now contains accurate runway headings (e.g., Elazığ `LTCA` has `07/25` -> `70` and `13/31` -> `130` degrees).
 
-The pipeline supports:
+### 4. Inline Seed Expansion
+- Expanded `inlineSeed` in `apps/api/src/data/airports.ts` to include Elazığ (`LTCA`), İzmir Adnan Menderes (`LTBJ`), and Dalaman (`LTBS`) by default so that they are always available out-of-the-box even if cache files are deleted or missing.
 
-```bash
-python tools/ml_pipeline.py download-metar --stations turkey --start 2023-01-01 --end 2026-01-01 --pause 5
-python tools/ml_pipeline.py collect-live --stations turkey --kinds taf
-npm run data:collect-taf-turkey
-python tools/ml_pipeline.py build-dataset
-python tools/ml_pipeline.py train
-python tools/ml_pipeline.py evaluate
-```
+---
 
-`--stations turkey` reads all project-known `LT*` airports from `apps/api/src/data/airports.generated.json`.
+## Presentation & Thesis Alignment State
 
-Current known Turkey station count:
+The presentation file `Bitirme Ödevi Sunum Şablonu .pptx` is fully updated and verified:
+- **Slide 1 Cover Page**: Updated with correct authors (**Mete Han YILMAZ**, **Ahmet Selim AYTAÇ**, **Emre NABİKOĞLU**), advisor (**Prof. Dr. Bilal ALATAŞ**), and correct thesis title: *"Yapay Zeka Destekli NOTAM ve METAR/TAF Analizi ile Uçuş Risk Değerlendirme ve Karar Destek Sistemi"*. Shifted boxes down to prevent overlap.
+- **Global Headers (Slides 2 to 40)**: Replaced `"Ali VELİ"` with `"M. H. Yılmaz, A. S. Aytaç, E. Nabikoğlu"`. Shifted the text box `Left` coordinate to the left and increased `Width` by `2.5M` dmus, keeping it `RIGHT` aligned. This prevents the names from wrapping onto a second line, fixing the layout shifts ("yazılar kaymış").
+- **Visuals Preserved**: Reverted all temporary Pillow drawings. 100% of the original high-resolution project screenshots (Slides 29-40) and system diagrams (Slides 20, 21, 23, 25) are fully preserved.
+- **LLM and SkyLink Details**: Updated Slide 10 (Veri Toplama Katmanı), Slide 23 (AI Mimarisi), and Slide 25 (Hibrit Risk Değerlendirmesi) to detail:
+  - SkyLink RapidAPI live NOTAM integration and fallback.
+  - OpenAI LLM semantic NOTAM parsing (JSON Mode) and Türkçe flight briefings.
+  - Controlled hybrid architecture (LLM cannot modify the calculated score, guardrail floors are enforced by the rules engine).
+- **Slide 41 (Thanks)**: Replaced thank-you presenter name with the correct author list.
 
-```text
-78 LT* airports
-```
+---
 
-### TAF Dataset
+## Known Issues & Limitations (Sorunlar)
 
-Historical TAF training data is not solved yet.
+Before handoff or continuation (especially with Opus 4.6), be aware of these active issues/limitations:
 
-Current state:
+1. **Vite Node.js Version Warning**:
+   - The React frontend console prints a warning: `Vite requires Node.js version 20.19+ or 22.12+`. The current workspace environment uses Node `22.4.0`. While Vite runs on port `5174` successfully, upgrading Node.js or using an LTS version is recommended to avoid runtime issues.
+2. **Network Timeout on Remote Airport Fetch**:
+   - The Express loader attempts to fetch CSV data from `ourairports.com` at startup, which consistently times out (attempt 1/2 and 2/2) in local environments due to network or proxy restrictions. This makes the local file `airports.generated.json` the sole provider of TR airport list data. Any cache regeneration (by passing `force=true`) will fail unless a stable external network connection is available.
+3. **TAF Historical Dataset & Separate ML Model Missing**:
+   - While METAR is predicted using a trained Logistic Regression model (ML), TAF is parsed and evaluated only heuristically by the rules engine and the LLM layer. TAF historical data collection is active via `collect-live --kinds taf`, but no separate ML model exists yet for forecasting weather deterioration trends.
+4. **Turkey Delay & Diversion Labels Missing**:
+   - The ML model currently predicts an operational METAR "proxy-risk" label (caution/high weather thresholds) rather than actual accident risk or BTS-style operational airport delay/diversion labels for Turkey.
+5. **Briefing Feedback is Local Only**:
+   - Ratings and manual classifications (`correct`, `too_conservative`, `missed_risk`, `wrong_reason`) collected via the React feedback panel are saved locally to `brief_feedback.jsonl` but are not yet used in a automated retraining or calibration loop.
+6. **API Key Dependencies**:
+   - SkyLink NOTAM and OpenAI LLM parsing require valid API keys stored in `apps/api/.env.local` to function in live mode. Without them, the backend falls back to simulated NOTAM generation and rule-based template briefings.
 
-- live TAF is fetched for briefing
-- live TAF snapshots can be collected with `collect-live`
-- `collect-live --kinds taf` collects TAF-only snapshots
-- `collect-taf-snapshot.bat` runs one TAF snapshot collection
-- `run-taf-snapshot-loop.bat` runs repeated TAF snapshots while its window is open
-- `install-taf-snapshot-task.bat` registers a Windows scheduled task so TAF snapshots continue even when the app is closed
-- TAF is used by heuristic/rule scoring and AI reporting
-- TAF is not yet trained as a separate ML model
+---
 
-Future target:
+## Next Steps
 
-```text
-TAF trend score =
-  forecast visibility trend
-  ceiling trend
-  TEMPO/BECMG/PROB deterioration
-  thunderstorm/freezing/precipitation signals
-  wind/gust trend
-```
-
-### NOTAM
-
-Current default:
-
-- deterministic synthetic NOTAM provider
-- clearly marked as demo/test synthetic data in UI
-- same ICAO + time bucket generates stable events
-
-Implemented live-ready provider:
-
-- `NOTAM_PROVIDER=laminar`
-- `LAMINAR_USER_KEY=...`
-- `NOTAM_PROVIDER=skylink`
-- `SKYLINK_API_KEY=...`
-- `SKYLINK_API_URL=https://skylink-api.p.rapidapi.com/notams`
-
-If Laminar/SkyLink key is absent or request fails, system falls back to simulated NOTAMs.
-
-SkyLink RapidAPI `0.3.1` has been smoke-tested with a user-provided key against:
-
-```text
-GET https://skylink-api.p.rapidapi.com/notams/{ICAO}
-```
-
-Observed live responses:
-
-```text
-LTFJ -> 29 NOTAMs
-LTFM -> 9 NOTAMs
-LTAC -> 16 NOTAMs
-```
-
-Do not commit API keys. Use environment variables only.
-
-Local runtime can load API environment values from:
-
-```text
-apps/api/.env
-apps/api/.env.local
-```
-
-`.env.local` is ignored and should be used for secrets.
-
-Current SkyLink validation commands:
-
-```bash
-npm run test:notam
-npm run test:notam:live
-```
-
-Latest live smoke result:
-
-```text
-date = 2026-06-07
-LTFJ -> total 29 / live 29 / synthetic 0 / critical 1
-LTFM -> total 9 / live 9 / synthetic 0 / critical 3
-LTAC -> total 16 / live 16 / synthetic 0 / critical 3
-```
-
-Latest live briefing analysis examples:
-
-```text
-date = 2026-06-07
-LTFM-LTAC -> METAR/TAF aviationweather, NOTAM SkyLink live, synthetic fallback 0, risk 40 yellow, confidence high 88, primary driver NOTAM 75
-LTAC-LTFJ -> METAR/TAF aviationweather, NOTAM SkyLink live, synthetic fallback 0, risk 42 yellow, confidence high 94, primary driver NOTAM 86
-```
-
-Official long-term sources to evaluate:
-
-- DHMI AIS/AIM
-- EUROCONTROL EAD
-
-## ML Pipeline State
-
-Implemented:
-
-- historical METAR downloader
-- live METAR/TAF snapshot collector
-- dataset builder
-- three-class logistic baseline trainer
-- time split and airport holdout validator
-- model artifact loader in `services/nlp`
-- trained model participates in `/ai/risk/predict` when `services/nlp/models/risk_model.json` exists
-- `services/nlp/models/risk_model.json` is intentionally tracked in git so a fresh clone can run the trained baseline without retraining first.
-
-Current training result:
-
-```text
-rows = 2,024,185
-target = risk_level
-label counts = normal 1,843,348 / caution 85,509 / high 95,328
-positive rows = 180,837
-roc_auc = 0.993052161307856
-```
-
-Important interpretation:
-
-- This is an operational METAR proxy-risk model.
-- It is not an accident-risk model.
-- `risk_level=1` represents caution-level METAR operational indicators.
-- `risk_level=2` represents high-level METAR operational indicators.
-- Positive labels represent low visibility, low RVR, low ceiling, strong wind/gust, thunderstorm/freezing/fog/precip operational indicators.
-- Soft caution labels include ceiling `<2000 ft` with fog/precip so BKN020-style winter/low-cloud cases are not treated as fully normal.
-
-Current validation result:
-
-```text
-time_validation rows = 304,920
-time_validation roc_auc = 0.9948543313889386
-time_validation false_negatives = 384
-time_validation false_positives = 10,769
-time_validation guardrail_false_negatives = 0
-time_validation guardrail_false_positives = 4,079
-
-airport_holdout rows = 218,157
-airport_holdout roc_auc = 0.9911601733517109
-airport_holdout false_negatives = 1,373
-airport_holdout false_positives = 7,378
-airport_holdout guardrail_false_negatives = 0
-airport_holdout guardrail_false_positives = 3,127
-```
-
-Runtime weather scoring uses a deterministic guardrail floor over the trained model:
-
-```text
-High floor:
-visibility < 1500 m
-RVR < 550 m
-ceiling < 600 ft
-wind >= 30 kt
-gust >= 35 kt
-TS/freezing signal
-
-Caution floor:
-visibility < 3000 m
-RVR < 1500 m
-ceiling < 1000 ft
-wind >= 22 kt
-gust >= 25 kt
-fog/precip with reduced visibility
-ceiling < 2000 ft with fog/precip
-```
-
-The same guardrail protects the final user-facing score:
-
-```text
-high weather floor >= 75   -> final score at least 70 / red
-caution weather floor >=40 -> final score at least 40 / yellow
-```
-
-Detailed validation artifact:
-
-```text
-data/processed/evaluation.json
-```
-
-## Risk Logic
-
-Current hybrid final score:
-
-```text
-finalScore = 0.65 * mlScore
-           + 0.25 * ruleScore
-           + 0.10 * notamSemanticScore
-```
-
-Risk bands:
-
-```text
-0-39   Low / Green
-40-69  Caution / Yellow
-70-100 High / Red
-```
-
-The UI must always explain:
-
-- why the score exists
-- which categories are present
-- which categories are absent
-- pros and cons
-- DEP NOTAM vs ARR NOTAM meaning
-- that the score is not an operational clearance
-
-## UI State
-
-Implemented:
-
-- home dashboard with last brief, provider/data status, TAF snapshot status, model health, and quick routes
-- compact decision summary shown before detailed analysis
-- Turkish-first UI labels for the main briefing flow
-- final score band thresholds are shown in the decision summary, especially `70+ = red/high`
-- technical risk/AI/NOTAM analysis is hidden by default and can be expanded
-- alternate suggestions are destination-centered: alternates are ranked around ARR, not around DEP
-- AI Evaluation section
-- risk categorization section
-- score formula explanation
-- pros/cons
-- NOTAM category matrix
-- NOTAM "what is present / not present"
-- readable METAR/TAF summary cards
-- raw METAR/TAF detail hidden behind expandable details
-- NOTAM detail cards with score, category, runway, validity, impacts, reason
-- provider metadata display
-- briefing feedback panel
-- calibration dashboard at `/calibration`
-
-## Calibration And Feedback
-
-Implemented:
-
-- `GET /model/status`
-- `GET /feedback/summary`
-- `POST /feedback`
-- feedback stored at `data/feedback/brief_feedback.jsonl`
-- accepted feedback labels: `correct`, `too_conservative`, `missed_risk`, `wrong_reason`
-
-Feedback is not used for training automatically yet. It is the first local manual-label source for later threshold tuning and supervised calibration.
-
-The calibration dashboard shows:
-
-- model version and target
-- dataset row count and label distribution
-- raw model confusion matrix
-- guardrail-adjusted confusion matrix
-- false negative / false positive counts
-- feedback totals
-
-## PDF State
-
-Implemented:
-
-- AI evaluation summary
-- hybrid score
-- model version
-- METAR weather assessment
-- trained/heuristic/guardrail scores
-- guardrail reasons
-- weather categories
-
-## Startup
-
-`start-flight-risk.bat` starts:
-
-```text
-AI  -> http://127.0.0.1:8000
-API -> http://127.0.0.1:4000
-Web -> http://127.0.0.1:5174
-```
-
-It avoids starting duplicate services if ports are already listening.
-
-## Completed Plan Items
-
-- Hybrid AI architecture implemented inside existing monorepo boundaries.
-- Express API remains briefing orchestrator.
-- `services/nlp` now provides AI endpoints.
-- METAR/TAF provider chain implemented.
-- `metar-taf.com` excluded from production provider plan.
-- Synthetic NOTAM deterministic event engine implemented.
-- Optional AI text render layer for synthetic NOTAM implemented.
-- UI includes AI evaluation and better score explanation.
-- PDF includes AI evaluation summary.
-- Data and ML pipeline implemented.
-- Historical METAR dataset built for Turkey `LT*` airports.
-- Baseline METAR ML model trained as three-class `risk_level` and loadable by AI service.
-- Model validation artifact includes confusion matrix, score percentiles, false negatives, false positives, and guardrail-adjusted metrics.
-- AI risk response includes weather assessment categories: visibility, RVR, ceiling, wind/gust, TS/freezing, fog/mist, precipitation, and TAF trend.
-- Calibration dashboard and local feedback loop implemented.
-- PDF includes METAR guardrail/weather category explanation.
-- TAF snapshot collection can run manually, in a foreground loop, or via Windows Task Scheduler.
-- SkyLink NOTAM provider skeleton implemented with fallback.
-- One-click Windows startup file added.
-- Home screen now has operational dashboard, data status, model health, and a simpler first-read brief summary.
-
-## Not Yet Complete
-
-- Real live NOTAM provider not validated because no API key has been provided yet.
-- TAF historical dataset is not available yet.
-- TAF ML model is not trained yet.
-- Current trained model is METAR proxy-risk only.
-- No accident/incident label is used.
-- No BTS-style operational delay/diversion labels for Turkey are integrated yet.
-- Feedback labels are collected locally but are not yet part of model training.
-
-## Next Best Steps
-
-1. Restart AI service after training so it loads the latest `risk_model.json`.
-2. Review `data/processed/evaluation.json` false negatives before changing green/yellow/red score thresholds.
-3. Install the TAF scheduled task if continuous local TAF history is desired.
-4. Test SkyLink with additional Turkey airports such as `LTBA`, `LTAI`, and `LTBJ`.
-5. If SkyLink remains reliable, run the app with `NOTAM_PROVIDER=skylink`.
-6. Add TAF dataset builder and TAF trend scorer once enough snapshots exist.
+1. **Upgrade Node.js** to `22.12.0+` or `20.19.0+` to resolve the Vite warnings.
+2. **Collect more TAF snapshots** using the Windows Task Scheduler (`install-taf-snapshot-task.bat`) to build a historical dataset.
+3. **Develop a TAF trend scorer** and integrate it into the FastAPI ML pipeline once sufficient TAF historical data is collected.
+4. **Implement automated threshold tuning** using the manual feedback labels collected in `brief_feedback.jsonl`.

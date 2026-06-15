@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flight Risk Tez Savunması - Soru Cevap ve ML Walkthrough</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5c667a;
+      --line: #d7dce5;
+      --soft: #f5f7fb;
+      --blue: #1e5aa8;
+      --green: #16784f;
+      --amber: #a86500;
+      --red: #b42318;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #ffffff;
+      color: var(--ink);
+      font-family: "Times New Roman", Georgia, serif;
+      font-size: 12.5pt;
+      line-height: 1.48;
+    }
+    .page {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 34px 38px 64px;
+    }
+    h1, h2, h3 {
+      color: var(--ink);
+      line-height: 1.18;
+      margin: 0;
+    }
+    h1 {
+      font-size: 25pt;
+      text-align: center;
+      margin-top: 10px;
+      letter-spacing: 0;
+    }
+    h2 {
+      font-size: 17pt;
+      border-bottom: 1.5px solid var(--line);
+      padding-bottom: 7px;
+      margin-top: 34px;
+      margin-bottom: 14px;
+    }
+    h3 {
+      font-size: 13.5pt;
+      margin-top: 18px;
+      margin-bottom: 8px;
+    }
+    p { margin: 7px 0; }
+    .subtitle {
+      text-align: center;
+      color: var(--muted);
+      margin: 10px auto 18px;
+      max-width: 760px;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 22px 0 26px;
+    }
+    .meta div, .note, .qa, .walk, .diagram, .table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--card);
+    }
+    .meta div {
+      padding: 10px 12px;
+      min-height: 70px;
+    }
+    .k {
+      display: block;
+      color: var(--muted);
+      font-size: 9.5pt;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+      margin-bottom: 5px;
+    }
+    .v { font-weight: bold; }
+    .note {
+      padding: 13px 15px;
+      border-left: 5px solid var(--blue);
+      background: #f7fbff;
+    }
+    .note strong { color: var(--blue); }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .qa {
+      margin: 12px 0;
+      overflow: hidden;
+    }
+    .q {
+      background: var(--soft);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 13px;
+      font-weight: bold;
+    }
+    .a {
+      padding: 11px 13px 13px;
+    }
+    .short {
+      border-left: 4px solid var(--green);
+      padding-left: 10px;
+      margin-bottom: 8px;
+    }
+    .deep {
+      color: #273449;
+    }
+    .walk {
+      padding: 13px 15px;
+      margin: 12px 0;
+    }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      font-size: 10pt;
+      margin: 2px 4px 2px 0;
+      white-space: nowrap;
+    }
+    .tag.green { border-color: #94d5b7; background: #eefaf4; color: var(--green); }
+    .tag.amber { border-color: #e3bd78; background: #fff8ec; color: var(--amber); }
+    .tag.red { border-color: #efa19a; background: #fff2f1; color: var(--red); }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0 14px;
+      font-size: 11.5pt;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 9px;
+      vertical-align: top;
+    }
+    th {
+      background: var(--soft);
+      text-align: left;
+    }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10.5pt;
+      background: #f1f4f8;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    pre {
+      background: #f6f8fb;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+      overflow-x: auto;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10.5pt;
+      line-height: 1.35;
+    }
+    ul, ol { margin-top: 6px; padding-left: 24px; }
+    li { margin: 3px 0; }
+    .diagram {
+      padding: 15px;
+      margin: 12px 0 18px;
+      background: #fcfdff;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+    .flow.four { grid-template-columns: repeat(4, 1fr); }
+    .flow.three { grid-template-columns: repeat(3, 1fr); }
+    .box {
+      border: 1px solid #b8c3d7;
+      border-radius: 8px;
+      background: white;
+      padding: 10px;
+      min-height: 82px;
+      position: relative;
+    }
+    .box h4 {
+      margin: 0 0 5px;
+      font-size: 11.5pt;
+      color: var(--blue);
+    }
+    .box p {
+      margin: 0;
+      font-size: 10.5pt;
+      color: #324057;
+    }
+    .arrow {
+      text-align: center;
+      color: var(--muted);
+      font-size: 10pt;
+      margin: -4px 0 8px;
+    }
+    .formula {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: bold;
+      border: 1px solid #c3d2ea;
+      background: #f7fbff;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 12px 0;
+    }
+    .print-break { break-before: page; page-break-before: always; }
+    .small { font-size: 10.5pt; color: var(--muted); }
+    @media print {
+      body { font-size: 11.5pt; }
+      .page { max-width: none; padding: 24mm 22mm; }
+      .qa, .walk, .diagram, table { break-inside: avoid; page-break-inside: avoid; }
+      h2 { break-after: avoid; page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>Tez Savunması Soru-Cevap ve ML Walkthrough</h1>
+    <p class="subtitle">
+      Yapay Zeka Destekli NOTAM ve METAR/TAF Analizi ile Uçuş Risk Değerlendirme Sistemi için
+      savunma provası, teknik açıklama notları ve makine öğrenmesi akış rehberi.
+    </p>
+
+    <section class="meta">
+      <div><span class="k">Sistem rolü</span><span class="v">Karar destek / brifing asistanı</span></div>
+      <div><span class="k">ML algoritması</span><span class="v">Çok sınıflı lojistik regresyon</span></div>
+      <div><span class="k">Eğitim hedefi</span><span class="v">METAR proxy-risk: 0 / 1 / 2</span></div>
+      <div><span class="k">Model artifact</span><span class="v">risk_model.json</span></div>
+    </section>
+
+    <div class="note">
+      <strong>Savunmada ana mesaj:</strong>
+      Bu sistem pilot yerine karar vermez. METAR/TAF, NOTAM, pist/rüzgar, kural motoru ve ML çıktısını birleştirerek
+      açıklanabilir uçuş öncesi risk brifingi üretir. Model gerçek kaza riski değil, meteorolojik operasyonel
+      proxy-risk sinyali tahmin eder.
+    </div>
+
+    <h2>1. Açılış Konuşması</h2>
+    <div class="walk">
+      <h3>60-90 saniyelik savunma özeti</h3>
+      <p>
+        Bu çalışmada uçuş öncesi brifing sürecinde kullanılan METAR, TAF, NOTAM, pist ve rüzgar gibi farklı veri
+        kaynaklarını tek ekranda açıklanabilir bir risk desteğine dönüştüren hibrit yapay zeka tabanlı bir prototip
+        geliştirdim. Sistem bir karar otoritesi değildir; pilotun, dispeçerin veya resmi AIS/AIM kaynağının yerine
+        geçmez. Amacı, uçuş öncesinde hangi başlıkların tekrar kontrol edilmesi gerektiğini anlaşılır biçimde
+        göstermektir.
+      </p>
+      <p>
+        Hibrit mimaride üç ana katman vardır. Birincisi, geçmiş Türkiye LT* METAR kayıtlarından eğitilmiş tabular
+        makine öğrenmesi modelidir. Bu model meteorolojik operasyonel proxy-risk seviyesini tahmin eder. İkincisi,
+        düşük görüş, düşük tavan, RVR, kuvvetli rüzgar ve TS/freezing gibi kritik eşikleri kaçırmamak için kullanılan
+        kural tabanlı guardrail katmanıdır. Üçüncüsü ise NOTAM metinlerini pist, seyrüsefer yardımcısı, yüzey,
+        ışıklandırma, hava sahası ve çalışma saati gibi operasyonel kategorilere ayıran semantik analiz katmanıdır.
+      </p>
+      <p>
+        Sonuçta sistem final risk skorunu ve risk bandını üretir; ancak bunu yalnızca sayı olarak bırakmaz. Kullanıcıya
+        "neden riskli", "hangi veri eksik", "hangi NOTAM kritik", "hangi parametre iyi veya izlenmeli" gibi açıklamalar
+        verir. Tezin katkısı tek bir model başarısından çok; veri entegrasyonu, modelleme, fallback, açıklanabilirlik ve
+        kullanıcı arayüzünü çalışan bir prototipte birleştirmesidir.
+      </p>
+    </div>
+
+    <h2>2. Uçtan Uca Sistem Çizimi</h2>
+    <div class="diagram">
+      <div class="flow five">
+        <div class="box"><h4>1. Kullanıcı</h4><p>DEP/ARR meydanı seçer ve brifing ister.</p></div>
+        <div class="box"><h4>2. Express API</h4><p>/brief orkestratörü tüm veri ve skor akışını yönetir.</p></div>
+        <div class="box"><h4>3. Veri kaynakları</h4><p>AviationWeather METAR/TAF, SkyLink/Laminar veya sentetik NOTAM.</p></div>
+        <div class="box"><h4>4. AI/NLP servisi</h4><p>NOTAM parse, ML risk predict ve açıklanabilir rapor üretir.</p></div>
+        <div class="box"><h4>5. UI/PDF</h4><p>Düşük/orta/yüksek risk, gerekçeler ve detaylar gösterilir.</p></div>
+      </div>
+      <p class="arrow">Kullanıcı isteği -> veri toplama -> feature çıkarımı -> hibrit skor -> açıklanabilir brifing</p>
+    </div>
+
+    <h2>3. Makine Öğrenmesi Walkthrough</h2>
+
+    <div class="walk">
+      <h3>3.1 Hangi algoritmayı kullandık?</h3>
+      <p>
+        İlk üretilebilir model olarak <strong>scikit-learn LogisticRegression</strong> kullandık.
+        Model, üç sınıflı <code>risk_level</code> hedefi için çalışıyor:
+        <span class="tag green">0 = normal</span>
+        <span class="tag amber">1 = caution / orta seviye</span>
+        <span class="tag red">2 = high / yüksek risk sinyali</span>
+      </p>
+      <p>
+        Eğitim pipeline'ı şu sıradadır:
+      </p>
+      <pre>SimpleImputer(strategy="median")
+StandardScaler()
+LogisticRegression(max_iter=1000, class_weight="balanced")</pre>
+      <p>
+        Bu seçim bilinçli yapıldı. Çünkü veri tabular METAR özelliklerinden oluşuyor, etiketler gerçek kaza etiketi
+        değil proxy-risk etiketi, bu nedenle ilk modelin yorumlanabilir, hızlı eğitilebilir ve runtime'a kolay taşınabilir
+        olması daha doğru. Deep learning bu sürümde ana hedef değil; yeterli tarihsel TAF ve gerçek operasyonel etiket
+        oluştuğunda gelecek çalışma olarak daha anlamlı olur.
+      </p>
+    </div>
+
+    <div class="diagram">
+      <h3>ML Eğitim Akışı</h3>
+      <div class="flow five">
+        <div class="box"><h4>Ham METAR CSV</h4><p>Iowa Mesonet ASOS/METAR arşivinden Türkiye LT* kayıtları.</p></div>
+        <div class="box"><h4>Temizleme</h4><p>Tarih, istasyon, METAR alanları okunur; geçersiz satırlar atlanır.</p></div>
+        <div class="box"><h4>Feature extraction</h4><p>Görüş, RVR, tavan, rüzgar, gust, hava olayı bayrakları.</p></div>
+        <div class="box"><h4>Proxy label</h4><p>0/1/2 risk_level eşiklerden türetilir.</p></div>
+        <div class="box"><h4>Model artifact</h4><p>risk_model.json AI servisinde runtime tahmin için yüklenir.</p></div>
+      </div>
+    </div>
+
+    <div class="walk">
+      <h3>3.2 Verileri nasıl düzenledik?</h3>
+      <ol>
+        <li>Türkiye LT* meydanları için geçmiş METAR kayıtları Iowa Mesonet arşivinden indirildi.</li>
+        <li>Her CSV satırında istasyon, geçerlilik zamanı, ham METAR, görüş, rüzgar, gust, hava olayı ve bulut alanları okundu.</li>
+        <li>Geçersiz tarihli veya parse edilemeyen satırlar dataset dışında bırakıldı.</li>
+        <li>Modelin kullanacağı sayısal/kategorik özellikler üretildi.</li>
+        <li>Her satıra <code>risk_level</code> ve <code>proxy_label</code> etiketi eklendi.</li>
+        <li>İşlenmiş veri <code>data/processed/risk_dataset.csv</code> dosyasına yazıldı.</li>
+      </ol>
+      <p>
+        Son eğitimde veri seti yaklaşık <strong>2.024.185 satır</strong> içeriyor. Etiket dağılımı:
+        normal <strong>1.843.348</strong>, caution <strong>85.509</strong>, high <strong>95.328</strong>.
+        Riskli sınıflar normal sınıfa göre daha az olduğu için eğitimde <code>class_weight="balanced"</code> kullanıldı.
+      </p>
+    </div>
+
+    <div class="walk">
+      <h3>3.3 Özellik çıkarımını nasıl yaptık?</h3>
+      <p>
+        Ham METAR metni doğrudan modele verilmedi. Önce uçuş brifingi açısından anlamlı, sayısal ve kategorik alanlara
+        ayrıldı. Bu sayede aynı feature seti hem ML modeli, hem kural motoru, hem de kullanıcı arayüzündeki risk
+        raporu tarafından kullanılabildi.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Feature</th><th>Nasıl çıkarıldı?</th><th>Neden önemli?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>visibility_m</code></td><td>METAR görüş alanı metreye çevrildi.</td><td>Düşük görüş kalkış/iniş ve yaklaşma planlamasını etkiler.</td></tr>
+          <tr><td><code>rvr_min_m</code></td><td>Ham METAR içindeki RVR tokenları parse edilip minimum değer alındı.</td><td>RVR kritik düşük görüş koşullarını daha hassas gösterir.</td></tr>
+          <tr><td><code>ceiling_ft</code></td><td>Bulut katmanlarından operasyonel tavan çıkarıldı.</td><td>Düşük tavan VFR/IFR ve yaklaşma kararlarını etkiler.</td></tr>
+          <tr><td><code>wind_kt</code>, <code>gust_kt</code></td><td>Rüzgar hızı ve gust değeri knot cinsinden alındı.</td><td>Kuvvetli rüzgar ve ani hamle operasyonel risk sinyalidir.</td></tr>
+          <tr><td><code>wx_fog</code></td><td>FG, BR, FZFG, MIFG gibi sis/mist sinyalleri bayraklandı.</td><td>Görüş ve tavanla birlikte risk seviyesini yükseltebilir.</td></tr>
+          <tr><td><code>wx_precip</code></td><td>RA, SN, DZ, SHRA, GR, GS gibi yağış kodları bayraklandı.</td><td>Pist yüzeyi, görüş ve yaklaşma konforunu etkileyebilir.</td></tr>
+          <tr><td><code>wx_ts</code></td><td>TS veya CB sinyali yakalandı.</td><td>Konvektif hava yüksek operasyonel dikkat gerektirir.</td></tr>
+          <tr><td><code>wx_freezing</code></td><td>FZ veya ICE sinyalleri yakalandı.</td><td>Donma/buzlanma yüksek risk floor'u oluşturur.</td></tr>
+          <tr><td><code>hour</code>, <code>month</code></td><td>Geçerlilik zamanından saat ve ay çıkarıldı.</td><td>Mevsimsellik ve gün içi dağılım model tarafından öğrenilebilir.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="diagram">
+      <h3>Feature Extraction Çizimi</h3>
+      <div class="flow four">
+        <div class="box"><h4>Ham METAR</h4><p>LTAC 041250Z 03005KT 9999 SCT040...</p></div>
+        <div class="box"><h4>Parser</h4><p>Rüzgar, görüş, RVR, bulut, hava olayı kodları ayrılır.</p></div>
+        <div class="box"><h4>Feature vektörü</h4><p>visibility_m, ceiling_ft, wind_kt, wx_ts, wx_fog...</p></div>
+        <div class="box"><h4>İki kullanım</h4><p>ML modeli + kural/guardrail + UI açıklaması aynı veriyi kullanır.</p></div>
+      </div>
+    </div>
+
+    <div class="walk">
+      <h3>3.4 Etiketleri neye göre verdik?</h3>
+      <p>
+        Etiketler gerçek kaza, olay veya emniyet etiketi değildir. Çünkü böyle bir veriyi Türkiye genelinde güvenilir,
+        lisanslı ve geniş kapsamlı şekilde toplamak bu tez kapsamını aşar. Bunun yerine <strong>operasyonel METAR
+        proxy-risk</strong> etiketi üretildi.
+      </p>
+      <table>
+        <thead>
+          <tr><th>risk_level</th><th>Anlam</th><th>Örnek koşullar</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0</td><td>Normal</td><td>Görüş iyi, tavan uygun, rüzgar düşük, kritik hava olayı yok.</td></tr>
+          <tr><td>1</td><td>Dikkat / orta</td><td>Visibility &lt; 3000 m, RVR &lt; 1500 m, ceiling &lt; 1000 ft, gust &gt;= 25 kt, wind &gt;= 22 kt, fog/precip ile düşük görüş.</td></tr>
+          <tr><td>2</td><td>Yüksek risk sinyali</td><td>Visibility &lt; 1500 m, RVR &lt; 550 m, ceiling &lt; 600 ft, gust &gt;= 35 kt, wind &gt;= 30 kt, TS/freezing.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Savunmada bunu şöyle söylemek doğru olur: "Model kazayı tahmin etmiyor; METAR içinde operasyonel dikkat
+        gerektiren meteorolojik sinyalleri sınıflandırıyor."
+      </p>
+    </div>
+
+    <div class="walk">
+      <h3>3.5 Model skoru nasıl risk skoruna dönüyor?</h3>
+      <p>
+        Logistic regression sınıf olasılıkları üretir. Bu olasılıklar <code>0 -> 5</code>, <code>1 -> 45</code>,
+        <code>2 -> 85</code> skor eşlemesiyle 0-100 bandına yakın bir meteorolojik risk skoruna çevrilir.
+        Sonra guardrail floor uygulanır.
+      </p>
+      <div class="formula">finalScore = 0.65 * mlScore + 0.25 * ruleScore + 0.10 * notamSemanticScore</div>
+      <p>
+        Bu formül LLM tarafından serbestçe yazılmaz. LLM tarzı katman yalnızca rapor ve açıklama üretir; final skorun
+        ana bileşenleri ML modeli, kural motoru ve NOTAM semantik skorundan gelir.
+      </p>
+    </div>
+
+    <div class="diagram">
+      <h3>Hibrit Skor Çizimi</h3>
+      <div class="flow four">
+        <div class="box"><h4>ML skoru</h4><p>METAR feature setinden öğrenilmiş proxy-risk skoru.</p></div>
+        <div class="box"><h4>Kural skoru</h4><p>Görüş, tavan, rüzgar, TAF ve baseline risk kuralları.</p></div>
+        <div class="box"><h4>NOTAM skoru</h4><p>Pist, seyrüsefer, yüzey, hava sahası vb. semantik etki.</p></div>
+        <div class="box"><h4>Guardrail</h4><p>Kritik meteorolojik eşikler minimum risk floor'u koyar.</p></div>
+      </div>
+    </div>
+
+    <div class="walk">
+      <h3>3.6 Validasyonu nasıl yaptık?</h3>
+      <p>
+        Yalnızca rastgele train/test split kullanmak yerine iki daha anlamlı kontrol yaptık:
+      </p>
+      <ul>
+        <li><strong>Zaman validasyonu:</strong> 2025-07-01 sonrası kayıtlar üzerinde test. Amaç geleceğe yakın davranışı görmek.</li>
+        <li><strong>Airport holdout:</strong> LTCE, LTCG, LTCI, LTFE, LTFO gibi bazı meydanları eğitim dışında tutup genelleme davranışını görmek.</li>
+      </ul>
+      <table>
+        <thead>
+          <tr><th>Validasyon</th><th>Satır</th><th>ROC AUC</th><th>False negative</th><th>Guardrail sonrası false negative</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Time validation</td><td>304.920</td><td>0.994854</td><td>384</td><td>0</td></tr>
+          <tr><td>Airport holdout</td><td>218.157</td><td>0.991160</td><td>1.373</td><td>0</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Savunmada dikkat edilmesi gereken nokta: Yüksek AUC, modelin proxy etiketi iyi ayırdığını gösterir; gerçek
+        operasyonel emniyet garantisi değildir. Guardrail sonrası false negative değerinin 0 olması, kritik meteorolojik
+        eşikleri deterministik olarak korumanın faydasını gösterir.
+      </p>
+    </div>
+
+    <h2 class="print-break">4. Sık Gelebilecek Jüri Soruları</h2>
+
+    <div class="qa">
+      <div class="q">Soru 1: Bu sistem uçuşun güvenli olup olmadığına karar veriyor mu?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Hayır. Sistem karar vermez; karar destek ve brifing asistanıdır.</p>
+        <p class="deep">
+          Sistem pilot, dispeçer, operatör, ATC veya resmi AIS/AIM otoritesinin yerine geçmez. Çıktı yalnızca hangi
+          başlıkların tekrar kontrol edilmesi gerektiğini gösterir. Risk skoru emniyet garantisi veya uçuş iptal kararı değildir.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 2: Neden hibrit yapay zeka kullandınız?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Çünkü tek başına ML veya LLM bu problem için yeterince kontrollü değil.</p>
+        <p class="deep">
+          ML modeli geçmiş METAR örüntülerini öğrenir ama kritik eşikleri kaçırabilir. Kural motoru açıklanabilir ve
+          deterministiktir ama veriden öğrenmez. NOTAM parser metinsel kısıtları yapılandırır. LLM tarzı rapor katmanı ise
+          yalnızca okunabilir açıklama üretir. Bu katmanların birlikte kullanılması hem açıklanabilirlik hem dayanıklılık sağlar.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 3: Makine öğrenmesi olarak tam olarak hangi algoritmayı kullandınız?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Median imputer ve standard scaler sonrası çok sınıflı LogisticRegression kullandık.</p>
+        <p class="deep">
+          Kod tarafında eğitim pipeline'ı <code>SimpleImputer(strategy="median")</code>, <code>StandardScaler()</code> ve
+          <code>LogisticRegression(max_iter=1000, class_weight="balanced")</code> şeklindedir. Hedef değişken
+          <code>risk_level</code> olup 0, 1 ve 2 sınıflarından oluşur.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 4: Neden deep learning kullanmadınız?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> İlk model için veri tabular ve proxy etiketli olduğu için yorumlanabilir baseline daha doğruydu.</p>
+        <p class="deep">
+          Bu tezde amaç en karmaşık modeli kurmak değil, veri-model-servis-UI akışını açıklanabilir şekilde birleştirmekti.
+          Logistic regression hızlı, yorumlanabilir, düşük maliyetli ve JSON artifact olarak runtime'a taşınabilir. Deep learning,
+          özellikle tarihsel TAF dizileri veya daha zengin operasyonel etiketler biriktiğinde gelecek çalışma olarak daha uygundur.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 5: Etiketler gerçek kaza riski mi?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Hayır. Etiketler operasyonel METAR proxy-risk etiketidir.</p>
+        <p class="deep">
+          Gerçek kaza veya olay etiketi değildir. Düşük görüş, düşük RVR, düşük tavan, kuvvetli rüzgar, TS/freezing, fog/precip
+          gibi brifingde dikkat gerektiren meteorolojik göstergelerden türetilmiştir. Bu yüzden model "kaza olur" demez;
+          "meteorolojik operasyonel dikkat sinyali var" der.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 6: Modelin AUC değeri çok yüksek. Bu gerçekçi mi?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Proxy etiket eşik tabanlı olduğu için yüksek AUC beklenebilir; bunu emniyet başarısı olarak yorumlamıyoruz.</p>
+        <p class="deep">
+          Etiketler METAR feature'larından türetildiği için model bu proxy etiketleri iyi ayırabilir. Ancak tezde bunu gerçek
+          operasyonel emniyet başarısı olarak sunmuyoruz. Bu yüzden false negative, false positive, zaman validasyonu,
+          airport holdout ve guardrail sonrası davranışla birlikte yorumluyoruz.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 7: Guardrail neden gerekli?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Kritik meteorolojik eşiklerin model tarafından normal sınıfa düşmesini engeller.</p>
+        <p class="deep">
+          Örneğin visibility &lt; 1500 m, RVR &lt; 550 m, ceiling &lt; 600 ft veya TS/freezing gibi durumlarda sistem minimum
+          yüksek risk floor'u uygular. Böylece istatistiksel modelin belirsizlik yaşadığı sınır durumlar deterministik olarak korunur.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 8: NOTAM tarafında canlı veri mi kullanıyorsunuz?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> SkyLink RapidAPI ile canlı NOTAM test edildi; sağlayıcı yoksa sentetik demo/test fallback kullanılır.</p>
+        <p class="deep">
+          LTFJ, LTFM ve LTAC için canlı NOTAM response alınmıştır. LTFM-LTAC ve LTAC-LTFJ örneklerinde canlı METAR/TAF ve
+          canlı NOTAM aynı brifing akışında kullanılmıştır. Ancak bu resmi AIS/AIM garantisi değildir. Canlı sağlayıcı hata
+          verirse sentetik NOTAM yalnızca demo/test fallback olarak işaretlenir.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 9: LLM sistemde ne kadar dahil?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> LLM karar verici değil, açıklama/rapor katmanıdır.</p>
+        <p class="deep">
+          LLM final skoru serbestçe üretmez. ML skoru, kural skoru ve NOTAM semantik skorundan gelen sonucu kullanıcıya
+          anlaşılır rapor olarak sunar. Eksik veri varsa confidence notu düşebilir; ancak skor üretim yetkisi sınırlıdır.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 10: TAF için ayrı bir ML modeli var mı?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Bu sürümde yok. TAF canlı brifingde ve heuristic değerlendirmede kullanılıyor; snapshot toplanıyor.</p>
+        <p class="deep">
+          Tarihsel TAF veri seti METAR kadar kolay çözülmediği için ayrı TAF ML modeli gelecek çalışma olarak bırakıldı.
+          Ancak TAF snapshot toplama altyapısı kuruldu; zamanla TAF trend modeli eğitmek için veri biriktirilebilir.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 11: Sistem dış API hata verirse ne olur?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Sistem tamamen çökmez; fallback davranışına geçer.</p>
+        <p class="deep">
+          METAR/TAF provider zinciri AviationWeather, CheckWX, AVWX ve NOAA fallback mantığıyla çalışır. NOTAM canlı
+          provider yoksa sentetik demo/test fallback devreye girer. AI servisi kapalıysa Express API kural tabanlı risk
+          motoruyla brifing üretmeye devam eder.
+        </p>
+      </div>
+    </div>
+
+    <div class="qa">
+      <div class="q">Soru 12: Bu çalışmanın en büyük sınırlılığı nedir?</div>
+      <div class="a">
+        <p class="short"><strong>Kısa cevap:</strong> Model gerçek operasyonel olay/kaza etiketiyle değil proxy etiketle eğitildi; TAF ML modeli ve resmi NOTAM entegrasyonu tam değildir.</p>
+        <p class="deep">
+          Bu sınırlılıklar tezde açıkça söylenmelidir. Yine de proje; veri toplama, model eğitimi, validasyon, canlı veri
+          entegrasyonu, NOTAM parsing, fallback ve UI açıklanabilirliğini uçtan uca çalışan bir prototipte birleştirdiği için
+          mühendislik katkısı taşır.
+        </p>
+      </div>
+    </div>
+
+    <h2>5. Kod Üzerinden Anlatım Sırası</h2>
+    <div class="walk">
+      <ol>
+        <li><code>tools/ml_pipeline.py</code>: METAR indirme, feature extraction, proxy label, model train/evaluate.</li>
+        <li><code>data/processed/risk_dataset.csv</code>: İşlenmiş eğitim datası.</li>
+        <li><code>services/nlp/models/risk_model.json</code>: Eğitilmiş logistic regression artifact'i.</li>
+        <li><code>services/nlp/main.py</code>: Runtime model loader, feature extraction, guardrail, AI report endpoints.</li>
+        <li><code>apps/api/src/index.ts</code>: /brief orkestrasyonu, METAR/TAF/NOTAM toplama, fallback, loglama.</li>
+        <li><code>apps/web</code>: Sade risk özeti, uçuş risk raporu tablosu, detay panelleri.</li>
+      </ol>
+      <pre>python tools/ml_pipeline.py build-dataset
+python tools/ml_pipeline.py train
+python tools/ml_pipeline.py evaluate
+npm run test:notam
+GET /brief?dep=LTFM&arr=LTAC</pre>
+    </div>
+
+    <h2>6. Kapanış İçin Hazır Cevap</h2>
+    <div class="note">
+      <p>
+        Bu tezdeki ana katkı, havacılık brifinginde yapay zekayı kontrolsüz karar verici olarak değil, sınırları çizilmiş
+        açıklanabilir karar destek bileşeni olarak konumlandırmaktır. ML modeli METAR proxy-risk skorunu üretir; kural
+        motoru kritik eşikleri korur; NOTAM parser metinsel operasyonel kısıtları yapılandırır; rapor katmanı ise sonucu
+        kullanıcıya anlaşılır şekilde sunar. Sistem gerçek operasyonel sertifikasyon iddiası taşımaz, fakat canlı veri,
+        model eğitimi, validasyon, fallback ve kullanıcı arayüzüyle çalışan uçtan uca bir prototip sunar.
+      </p>
+    </div>
+  </main>
+</body>
+</html>

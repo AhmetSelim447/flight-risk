@@ -39,7 +39,7 @@ app.use(express.json());
 
 // dayanıklılık
 app.use(apiRateLimit as any);
-app.use(requestTimeout(15_000));
+app.use(requestTimeout(45_000));
 
 /* ================= Swagger Spec (NO JSDOC PARSE) ================= */
 type OpenApiDoc = Record<string, any>;
@@ -113,7 +113,7 @@ function aiServiceUrl() {
 async function postAiJson<T>(
   pathName: string,
   body: unknown,
-  timeoutMs = Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 2500)
+  timeoutMs = Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 15000)
 ): Promise<T | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -1393,12 +1393,23 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
     }
   }
 
+  // NOTAM gerekçelerini kategori bazlı zenginleştir
+  const notamCatMap: Record<string, string> = {
+    runway_closure: "pist kapanışı", runway_surface: "pist yüzeyi",
+    runway_inspection: "pist kontrolü", nav_outage: "seyrüsefer arızası",
+    lighting_maintenance: "ışıklandırma", ops_hours: "çalışma saati",
+    apron_works: "apron çalışması", taxiway_works: "taksi yolu",
+    airspace_activity: "hava sahası", weather_advisory: "hava uyarısı",
+  };
   if (depCriticalNotamCount > 0) {
-    reasons.push(`DEP tarafında kritik NOTAM var (${depCriticalNotamCount})`);
+    const depCats = [...new Set((nDep ?? []).filter((n: any) => n.critical).map((n: any) => n.event?.category || n.impacts?.[0] || "").filter(Boolean))].slice(0, 3);
+    const depLabels = depCats.map((c: string) => (notamCatMap as any)[c] || c);
+    reasons.push(depLabels.length > 0 ? `DEP: ${depCriticalNotamCount} kritik NOTAM (${depLabels.join(", ")})` : `DEP: ${depCriticalNotamCount} kritik NOTAM`);
   }
-
   if (arrCriticalNotamCount > 0) {
-    reasons.push(`ARR tarafında kritik NOTAM var (${arrCriticalNotamCount})`);
+    const arrCats = [...new Set((nArr ?? []).filter((n: any) => n.critical).map((n: any) => n.event?.category || n.impacts?.[0] || "").filter(Boolean))].slice(0, 3);
+    const arrLabels = arrCats.map((c: string) => (notamCatMap as any)[c] || c);
+    reasons.push(arrLabels.length > 0 ? `ARR: ${arrCriticalNotamCount} kritik NOTAM (${arrLabels.join(", ")})` : `ARR: ${arrCriticalNotamCount} kritik NOTAM`);
   }
 
   if (notamRiskBump > 0) {
@@ -2538,15 +2549,77 @@ function isPortListening(port: number) {
   });
 }
 
+async function killProcessOnPort(port: number): Promise<boolean> {
+  const { execSync } = await import("child_process");
+  try {
+    if (process.platform === "win32") {
+      // Windows: netstat ile PID bul, taskkill ile öldür
+      const output = execSync(
+        `netstat -ano | findstr :${port} | findstr LISTENING`,
+        { encoding: "utf-8", timeout: 3000 }
+      ).trim();
+      const lines = output.split(/\r?\n/).filter(Boolean);
+      const pids = new Set<number>();
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        const pid = Number(parts[parts.length - 1]);
+        if (pid > 0 && pid !== process.pid) pids.add(pid);
+      }
+      for (const pid of pids) {
+        try {
+          execSync(`taskkill /PID ${pid} /F /T`, { encoding: "utf-8", timeout: 3000 });
+          console.log(`[start] Eski process (PID ${pid}) port ${port}'dan kaldırıldı.`);
+        } catch {}
+      }
+      return pids.size > 0;
+    } else {
+      // Linux/Mac: lsof ile PID bul, kill ile öldür
+      const output = execSync(
+        `lsof -ti :${port}`,
+        { encoding: "utf-8", timeout: 3000 }
+      ).trim();
+      const pids = output.split(/\s+/).map(Number).filter((p) => p > 0 && p !== process.pid);
+      for (const pid of pids) {
+        try {
+          execSync(`kill -9 ${pid}`, { timeout: 3000 });
+          console.log(`[start] Eski process (PID ${pid}) port ${port}'dan kaldırıldı.`);
+        } catch {}
+      }
+      return pids.length > 0;
+    }
+  } catch {
+    // Komut başarısız oldu — muhtemelen port zaten boş
+    return false;
+  }
+}
+
 async function start() {
   const PORT = Number(process.env.PORT ?? 4000);
 
+  // Port meşgulse → eski process'i otomatik öldür
   if ((await isPortListening(PORT)) || !(await canBindPort(PORT))) {
-    console.log(
-      `[start] Port ${PORT} is already in use; skipping duplicate API startup. ` +
-        `Use the existing API at http://localhost:${PORT}.`
-    );
-    return;
+    console.log(`[start] Port ${PORT} meşgul, eski process kaldırılıyor...`);
+    const killed = await killProcessOnPort(PORT);
+    if (killed) {
+      // Process öldükten sonra port'un serbest kalmasını bekle
+      await new Promise((r) => setTimeout(r, 1500));
+      // Tekrar kontrol et
+      if (await isPortListening(PORT)) {
+        console.error(
+          `[start] Port ${PORT} hâlâ meşgul. Eski process kaldırılamadı. ` +
+            `Manuel olarak kapatın: http://localhost:${PORT}`
+        );
+        process.exit(1);
+        return;
+      }
+    } else {
+      console.error(
+        `[start] Port ${PORT} meşgul ama process bulunamadı. ` +
+          `Manuel olarak kontrol edin.`
+      );
+      process.exit(1);
+      return;
+    }
   }
 
   await ensureAirportsReady();
@@ -2564,10 +2637,10 @@ async function start() {
   server.on("error", (e: NodeJS.ErrnoException) => {
     if (e.code === "EADDRINUSE") {
       console.error(
-        `[start] Port ${PORT} is already in use. Another Flight Risk API is probably already running. ` +
-          `Close the duplicate terminal or use the existing API at http://localhost:${PORT}.`
+        `[start] Port ${PORT} beklenmedik şekilde hâlâ meşgul. ` +
+          `Uygulamayı yeniden başlatın.`
       );
-      process.exit(0);
+      process.exit(1);
       return;
     }
     throw e;

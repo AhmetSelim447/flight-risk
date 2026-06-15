@@ -467,7 +467,7 @@ async function enrichedText(icao: string, event: NotamEvent): Promise<string> {
 
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 2500));
+    const timer = setTimeout(() => ctrl.abort(), Number(process.env.AI_SERVICE_TIMEOUT_MS ?? 15000));
 
     const response = await fetch(`${aiServiceUrl()}/ai/notam/render`, {
       method: "POST",

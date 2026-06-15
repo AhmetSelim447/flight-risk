@@ -203,3 +203,19 @@ export function getNotamProvider(): NotamProvider {
 
   return simulatedNotamProvider;
 }
+
+// ─── NOTAM Cache katmanı ───
+const NOTAM_CACHE = new Map<string, { data: NotamItem[]; fetchedAt: number }>();
+const NOTAM_CACHE_TTL_MS = 5 * 60 * 1000; // 5 dakika
+
+export async function getNotamCached(icao: string): Promise<NotamItem[]> {
+  const key = icao.toUpperCase();
+  const cached = NOTAM_CACHE.get(key);
+  if (cached && Date.now() - cached.fetchedAt < NOTAM_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  const provider = getNotamProvider();
+  const data = await provider.getNotam(key);
+  NOTAM_CACHE.set(key, { data, fetchedAt: Date.now() });
+  return data;
+}

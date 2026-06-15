@@ -16,7 +16,9 @@ export type AirportRow = {
 
 // ---- Yardımcılar ----
 function toNumber(x: any): number | undefined {
-  const n = Number(String(x ?? "").trim());
+  const s = String(x ?? "").trim();
+  if (s === "") return undefined;
+  const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
 }
 function feetToMeters(ft?: number): number | undefined {
