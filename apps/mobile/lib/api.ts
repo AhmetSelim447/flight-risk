@@ -73,12 +73,20 @@ export async function fetchBrief(
   const dep = depIcao.trim().toUpperCase();
   const arr = arrIcao.trim().toUpperCase();
 
+  console.log('FETCH BRIEF VALUES:', { dep, arr, crossLimit });
+
+  if (dep.length < 4 || arr.length < 4) {
+    throw new Error(`Geçersiz ICAO: DEP=${dep}, ARR=${arr}`);
+  }
+
   let url = `${API_BASE}/brief?dep=${encodeURIComponent(dep)}&arr=${encodeURIComponent(arr)}`;
 
   if (crossLimit && crossLimit > 0) {
     url += `&crossLimit=${encodeURIComponent(String(crossLimit))}`;
     url += `&crosswindLimitKt=${encodeURIComponent(String(crossLimit))}`;
   }
+
+  console.log('FETCH BRIEF URL:', url);
 
   const r = await fetch(url);
   return safeJson<BriefResponse>(r);

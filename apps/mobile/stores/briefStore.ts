@@ -15,6 +15,12 @@ interface BriefState {
   clear: () => void;
 }
 
+function normalizeIcao(value: string) {
+  const normalized = value.trim().toUpperCase();
+  const match = normalized.match(/[A-Z]{4}/);
+  return match ? match[0] : normalized;
+}
+
 export const useBriefStore = create<BriefState>((set) => ({
   depIcao: '',
   arrIcao: '',
@@ -23,13 +29,36 @@ export const useBriefStore = create<BriefState>((set) => ({
   isLoading: false,
   lastBrief: null,
 
-  setDeparture: (icao, name) => set({ depIcao: icao, depName: name }),
-  setArrival: (icao, name) => set({ arrIcao: icao, arrName: name }),
-  swapAirports: () => set((s) => ({
-    depIcao: s.arrIcao, arrIcao: s.depIcao,
-    depName: s.arrName, arrName: s.depName,
-  })),
+  setDeparture: (icao, name) =>
+    set({
+      depIcao: normalizeIcao(icao),
+      depName: name,
+    }),
+
+  setArrival: (icao, name) =>
+    set({
+      arrIcao: normalizeIcao(icao),
+      arrName: name,
+    }),
+
+  swapAirports: () =>
+    set((s) => ({
+      depIcao: normalizeIcao(s.arrIcao),
+      arrIcao: normalizeIcao(s.depIcao),
+      depName: s.arrName,
+      arrName: s.depName,
+    })),
+
   setLoading: (loading) => set({ isLoading: loading }),
+
   setLastBrief: (brief) => set({ lastBrief: brief }),
-  clear: () => set({ depIcao: '', arrIcao: '', depName: '', arrName: '', lastBrief: null }),
+
+  clear: () =>
+    set({
+      depIcao: '',
+      arrIcao: '',
+      depName: '',
+      arrName: '',
+      lastBrief: null,
+    }),
 }));
