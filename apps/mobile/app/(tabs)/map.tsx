@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, {
   Marker,
@@ -52,10 +52,28 @@ function getAirportCoordinate(airport?: MapAirport | null): LatLng | null {
   };
 }
 
-function getRiskColor(riskClass?: string) {
-  if (riskClass === 'red') return COLORS.riskRed;
-  if (riskClass === 'yellow') return COLORS.riskYellow;
+function getRiskColor(riskClass?: string, score?: number) {
+  if (riskClass === 'red' || (typeof score === 'number' && score >= 70)) {
+    return COLORS.riskRed;
+  }
+
+  if (riskClass === 'yellow' || (typeof score === 'number' && score >= 40)) {
+    return COLORS.riskYellow;
+  }
+
   return COLORS.riskGreen;
+}
+
+function getRiskLabel(riskClass?: string, score?: number) {
+  if (riskClass === 'red' || (typeof score === 'number' && score >= 70)) {
+    return 'Yüksek Risk';
+  }
+
+  if (riskClass === 'yellow' || (typeof score === 'number' && score >= 40)) {
+    return 'Orta Risk';
+  }
+
+  return 'Düşük Risk';
 }
 
 export default function RouteMap() {
@@ -79,8 +97,8 @@ export default function RouteMap() {
       return riskAny.alternates;
     }
 
-    if (Array.isArray(lastBrief?.alternates)) {
-      return lastBrief.alternates as MapAirport[];
+    if (Array.isArray((lastBrief as any)?.alternates)) {
+      return (lastBrief as any).alternates;
     }
 
     return [];
@@ -88,9 +106,9 @@ export default function RouteMap() {
 
   const alternateCoordinates = useMemo(() => {
     return alternateDetails
-      .map((alt) => ({
-        airport: alt,
-        coordinate: getAirportCoordinate(alt),
+      .map((airport) => ({
+        airport,
+        coordinate: getAirportCoordinate(airport),
       }))
       .filter((item): item is { airport: MapAirport; coordinate: LatLng } => {
         return item.coordinate !== null;
@@ -102,9 +120,12 @@ export default function RouteMap() {
     return [depCoordinate, arrCoordinate];
   }, [depCoordinate, arrCoordinate]);
 
-  const riskColor = getRiskColor(lastBrief?.risk?.class);
+  const riskScore = lastBrief?.risk?.score;
+  const riskClass = lastBrief?.risk?.class;
+  const riskColor = getRiskColor(riskClass, riskScore);
+  const riskLabel = getRiskLabel(riskClass, riskScore);
 
-  useEffect(() => {
+  const fitRoute = () => {
     if (!mapRef.current || !depCoordinate || !arrCoordinate) return;
 
     const coordinates = [
@@ -113,11 +134,22 @@ export default function RouteMap() {
       ...alternateCoordinates.map((item) => item.coordinate),
     ];
 
+    mapRef.current.fitToCoordinates(coordinates, {
+      edgePadding: {
+        top: 130,
+        right: 60,
+        bottom: 120,
+        left: 60,
+      },
+      animated: true,
+    });
+  };
+
+  useEffect(() => {
+    if (!depCoordinate || !arrCoordinate) return;
+
     const timer = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(coordinates, {
-        edgePadding: { top: 120, right: 60, bottom: 120, left: 60 },
-        animated: true,
-      });
+      fitRoute();
     }, 500);
 
     return () => clearTimeout(timer);
@@ -139,7 +171,7 @@ export default function RouteMap() {
         initialRegion={defaultRegion}
         userInterfaceStyle="dark"
       >
-        {depCoordinate && (
+        {depCoordinate ? (
           <Marker
             coordinate={depCoordinate}
             title={dep?.icao}
@@ -156,9 +188,9 @@ export default function RouteMap() {
               </View>
             </Callout>
           </Marker>
-        )}
+        ) : null}
 
-        {arrCoordinate && (
+        {arrCoordinate ? (
           <Marker
             coordinate={arrCoordinate}
             title={arr?.icao}
@@ -173,12 +205,12 @@ export default function RouteMap() {
                 </Text>
                 <Text style={styles.calloutRole}>Varış Meydanı</Text>
                 <Text style={[styles.calloutRisk, { color: riskColor }]}>
-                  Risk Skoru: %{lastBrief?.risk?.score ?? '-'}
+                  {riskLabel} / %{riskScore ?? '-'}
                 </Text>
               </View>
             </Callout>
           </Marker>
-        )}
+        ) : null}
 
         {alternateCoordinates.map(({ airport, coordinate }, index) => (
           <Marker
@@ -207,44 +239,58 @@ export default function RouteMap() {
                     Mesafe: {Math.round(airport.distanceKm)} km
                   </Text>
                 ) : null}
+
+                {typeof airport.riskScore === 'number' ? (
+                  <Text style={styles.calloutRisk}>
+                    Risk: %{Math.round(airport.riskScore)}
+                  </Text>
+                ) : null}
               </View>
             </Callout>
           </Marker>
         ))}
 
-        {routeCoordinates.length === 2 && (
+        {routeCoordinates.length === 2 ? (
           <Polyline
             coordinates={routeCoordinates}
             strokeColor={riskColor}
-            strokeWidth={4}
-            lineDashPattern={[8, 6]}
+            strokeWidth={5}
+            lineDashPattern={[10, 6]}
           />
-        )}
+        ) : null}
       </MapView>
 
       {lastBrief ? (
-        <View style={styles.topCard}>
-          <View style={styles.routeRow}>
-            <View style={styles.routeItem}>
-              <Text style={styles.routeLabel}>DEP</Text>
-              <Text style={styles.routeIcao}>{dep?.icao || '-'}</Text>
+        <>
+          <View style={styles.topCard}>
+            <View style={styles.routeRow}>
+              <View style={styles.routeItem}>
+                <Text style={styles.routeLabel}>DEP</Text>
+                <Text style={styles.routeIcao}>{dep?.icao || '-'}</Text>
+              </View>
+
+              <View style={styles.planeCircle}>
+                <Ionicons name="airplane" size={19} color={COLORS.textPrimary} />
+              </View>
+
+              <View style={styles.routeItem}>
+                <Text style={styles.routeLabel}>ARR</Text>
+                <Text style={styles.routeIcao}>{arr?.icao || '-'}</Text>
+              </View>
             </View>
 
-            <Ionicons name="airplane" size={20} color={COLORS.primaryLight} />
-
-            <View style={styles.routeItem}>
-              <Text style={styles.routeLabel}>ARR</Text>
-              <Text style={styles.routeIcao}>{arr?.icao || '-'}</Text>
+            <View style={styles.riskPill}>
+              <View style={[styles.riskDot, { backgroundColor: riskColor }]} />
+              <Text style={styles.riskText}>
+                {riskLabel} / %{riskScore ?? '-'}
+              </Text>
             </View>
           </View>
 
-          <View style={styles.riskPill}>
-            <View style={[styles.riskDot, { backgroundColor: riskColor }]} />
-            <Text style={styles.riskText}>
-              Risk Skoru: %{lastBrief.risk?.score ?? '-'}
-            </Text>
-          </View>
-        </View>
+          <TouchableOpacity style={styles.focusButton} onPress={fitRoute}>
+            <Ionicons name="locate" size={20} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+        </>
       ) : (
         <View style={styles.banner}>
           <Ionicons
@@ -276,7 +322,7 @@ const styles = StyleSheet.create({
     top: SPACING.lg,
     left: SPACING.md,
     right: SPACING.md,
-    backgroundColor: COLORS.surface + 'E6',
+    backgroundColor: COLORS.surface + 'E8',
     borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: BORDER_RADIUS.md,
@@ -285,21 +331,29 @@ const styles = StyleSheet.create({
   routeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: SPACING.sm,
   },
   routeItem: {
     flex: 1,
   },
   routeLabel: {
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontSize: FONT_SIZES.xs,
     fontWeight: 'bold',
   },
   routeIcao: {
     color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
+  },
+  planeCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: BORDER_RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    marginHorizontal: SPACING.sm,
   },
   riskPill: {
     flexDirection: 'row',
@@ -323,9 +377,22 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     fontWeight: 'bold',
   },
+  focusButton: {
+    position: 'absolute',
+    right: SPACING.md,
+    bottom: SPACING.lg,
+    width: 48,
+    height: 48,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: COLORS.border,
+    borderWidth: 1,
+  },
   callout: {
     padding: SPACING.sm,
-    width: 200,
+    width: 210,
     backgroundColor: COLORS.surface,
   },
   calloutTitle: {
