@@ -1,39 +1,127 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, {
+  Marker,
+  Polyline,
+  Callout,
+  PROVIDER_GOOGLE,
+  LatLng,
+} from 'react-native-maps';
 import { useBriefStore } from '../../stores/briefStore';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+
+type MapAirport = {
+  icao?: string;
+  name?: string;
+  city?: string;
+  coords?: {
+    lat?: number;
+    lng?: number;
+  };
+  lat?: number;
+  lon?: number;
+  distance_nm?: number;
+  distanceKm?: number;
+  riskScore?: number;
+};
+
+function getAirportCoordinate(airport?: MapAirport | null): LatLng | null {
+  const lat =
+    typeof airport?.coords?.lat === 'number'
+      ? airport.coords.lat
+      : typeof airport?.lat === 'number'
+        ? airport.lat
+        : undefined;
+
+  const lng =
+    typeof airport?.coords?.lng === 'number'
+      ? airport.coords.lng
+      : typeof airport?.lon === 'number'
+        ? airport.lon
+        : undefined;
+
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    return null;
+  }
+
+  return {
+    latitude: lat,
+    longitude: lng,
+  };
+}
+
+function getRiskColor(riskClass?: string) {
+  if (riskClass === 'red') return COLORS.riskRed;
+  if (riskClass === 'yellow') return COLORS.riskYellow;
+  return COLORS.riskGreen;
+}
 
 export default function RouteMap() {
   const { lastBrief } = useBriefStore();
   const mapRef = useRef<MapView>(null);
 
-  const dep = lastBrief?.airports?.dep;
-  const arr = lastBrief?.airports?.arr;
+  const dep = lastBrief?.airports?.dep as MapAirport | undefined;
+  const arr = lastBrief?.airports?.arr as MapAirport | undefined;
 
-  // Alternate airports details
-  const alternateDetails = (lastBrief?.risk as any)?.alternateDetails || [];
+  const depCoordinate = useMemo(() => getAirportCoordinate(dep), [dep]);
+  const arrCoordinate = useMemo(() => getAirportCoordinate(arr), [arr]);
+
+  const alternateDetails = useMemo<MapAirport[]>(() => {
+    const riskAny = lastBrief?.risk as any;
+
+    if (Array.isArray(riskAny?.alternateDetails)) {
+      return riskAny.alternateDetails;
+    }
+
+    if (Array.isArray(riskAny?.alternates)) {
+      return riskAny.alternates;
+    }
+
+    if (Array.isArray(lastBrief?.alternates)) {
+      return lastBrief.alternates as MapAirport[];
+    }
+
+    return [];
+  }, [lastBrief]);
+
+  const alternateCoordinates = useMemo(() => {
+    return alternateDetails
+      .map((alt) => ({
+        airport: alt,
+        coordinate: getAirportCoordinate(alt),
+      }))
+      .filter((item): item is { airport: MapAirport; coordinate: LatLng } => {
+        return item.coordinate !== null;
+      });
+  }, [alternateDetails]);
+
+  const routeCoordinates = useMemo(() => {
+    if (!depCoordinate || !arrCoordinate) return [];
+    return [depCoordinate, arrCoordinate];
+  }, [depCoordinate, arrCoordinate]);
+
+  const riskColor = getRiskColor(lastBrief?.risk?.class);
 
   useEffect(() => {
-    if (!mapRef.current || !dep?.coords || !arr?.coords) return;
+    if (!mapRef.current || !depCoordinate || !arrCoordinate) return;
 
     const coordinates = [
-      { latitude: dep.coords.lat, longitude: dep.coords.lng },
-      { latitude: arr.coords.lat, longitude: arr.coords.lng },
-      ...alternateDetails
-        .filter((alt: any) => alt.lat && alt.lon)
-        .map((alt: any) => ({ latitude: alt.lat, longitude: alt.lon })),
+      depCoordinate,
+      arrCoordinate,
+      ...alternateCoordinates.map((item) => item.coordinate),
     ];
 
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       mapRef.current?.fitToCoordinates(coordinates, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        edgePadding: { top: 120, right: 60, bottom: 120, left: 60 },
         animated: true,
       });
     }, 500);
-  }, [dep, arr, alternateDetails]);
+
+    return () => clearTimeout(timer);
+  }, [depCoordinate, arrCoordinate, alternateCoordinates]);
 
   const defaultRegion = {
     latitude: 39.0,
@@ -51,90 +139,120 @@ export default function RouteMap() {
         initialRegion={defaultRegion}
         userInterfaceStyle="dark"
       >
-        {dep?.coords && (
+        {depCoordinate && (
           <Marker
-            coordinate={{ latitude: dep.coords.lat, longitude: dep.coords.lng }}
-            title={dep.icao}
-            description={dep.name || 'Kalkış Havalimanı'}
+            coordinate={depCoordinate}
+            title={dep?.icao}
+            description={dep?.name || 'Kalkış Havalimanı'}
             pinColor={COLORS.primary}
           >
-            <Callout>
+            <Callout tooltip={false}>
               <View style={styles.callout}>
-                <Text style={styles.calloutTitle}>{dep.icao}</Text>
-                <Text style={styles.calloutDesc}>{dep.name}</Text>
+                <Text style={styles.calloutTitle}>{dep?.icao || 'DEP'}</Text>
+                <Text style={styles.calloutDesc}>
+                  {dep?.name || dep?.city || 'Kalkış Havalimanı'}
+                </Text>
                 <Text style={styles.calloutRole}>Kalkış Meydanı</Text>
               </View>
             </Callout>
           </Marker>
         )}
 
-        {arr?.coords && (
+        {arrCoordinate && (
           <Marker
-            coordinate={{ latitude: arr.coords.lat, longitude: arr.coords.lng }}
-            title={arr.icao}
-            description={arr.name || 'Varış Havalimanı'}
-            pinColor={
-              lastBrief?.risk.class === 'red' 
-                ? COLORS.riskRed 
-                : lastBrief?.risk.class === 'yellow' 
-                ? COLORS.riskYellow 
-                : COLORS.riskGreen
-            }
+            coordinate={arrCoordinate}
+            title={arr?.icao}
+            description={arr?.name || 'Varış Havalimanı'}
+            pinColor={riskColor}
           >
-            <Callout>
+            <Callout tooltip={false}>
               <View style={styles.callout}>
-                <Text style={styles.calloutTitle}>{arr.icao}</Text>
-                <Text style={styles.calloutDesc}>{arr.name}</Text>
+                <Text style={styles.calloutTitle}>{arr?.icao || 'ARR'}</Text>
+                <Text style={styles.calloutDesc}>
+                  {arr?.name || arr?.city || 'Varış Havalimanı'}
+                </Text>
                 <Text style={styles.calloutRole}>Varış Meydanı</Text>
-                <Text style={styles.calloutRisk}>
-                  Risk Skoru: %{lastBrief?.risk.score}
+                <Text style={[styles.calloutRisk, { color: riskColor }]}>
+                  Risk Skoru: %{lastBrief?.risk?.score ?? '-'}
                 </Text>
               </View>
             </Callout>
           </Marker>
         )}
 
-        {/* Alternate markers */}
-        {alternateDetails.map((alt: any, index: number) => {
-          if (!alt.lat || !alt.lon) return null;
-          return (
-            <Marker
-              key={index}
-              coordinate={{ latitude: alt.lat, longitude: alt.lon }}
-              title={alt.icao}
-              description={alt.name || 'Yedek Havalimanı'}
-              pinColor={COLORS.primaryLight}
-            >
-              <Callout>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{alt.icao}</Text>
-                  <Text style={styles.calloutDesc}>{alt.name || alt.city}</Text>
-                  <Text style={styles.calloutRole}>Yedek Meydan (ALTN)</Text>
-                  {alt.distance_nm && (
-                    <Text style={styles.calloutRisk}>Mesafe: {Math.round(alt.distance_nm)} NM</Text>
-                  )}
-                </View>
-              </Callout>
-            </Marker>
-          );
-        })}
+        {alternateCoordinates.map(({ airport, coordinate }, index) => (
+          <Marker
+            key={`${airport.icao || 'ALT'}-${index}`}
+            coordinate={coordinate}
+            title={airport.icao}
+            description={airport.name || airport.city || 'Yedek Havalimanı'}
+            pinColor={COLORS.primaryLight}
+          >
+            <Callout tooltip={false}>
+              <View style={styles.callout}>
+                <Text style={styles.calloutTitle}>{airport.icao || 'ALTN'}</Text>
+                <Text style={styles.calloutDesc}>
+                  {airport.name || airport.city || 'Yedek Havalimanı'}
+                </Text>
+                <Text style={styles.calloutRole}>Yedek Meydan</Text>
 
-        {dep?.coords && arr?.coords && (
+                {typeof airport.distance_nm === 'number' ? (
+                  <Text style={styles.calloutRisk}>
+                    Mesafe: {Math.round(airport.distance_nm)} NM
+                  </Text>
+                ) : null}
+
+                {typeof airport.distanceKm === 'number' ? (
+                  <Text style={styles.calloutRisk}>
+                    Mesafe: {Math.round(airport.distanceKm)} km
+                  </Text>
+                ) : null}
+              </View>
+            </Callout>
+          </Marker>
+        ))}
+
+        {routeCoordinates.length === 2 && (
           <Polyline
-            coordinates={[
-              { latitude: dep.coords.lat, longitude: dep.coords.lng },
-              { latitude: arr.coords.lat, longitude: arr.coords.lng },
-            ]}
-            strokeColor={COLORS.primary}
-            strokeWidth={3}
-            lineDashPattern={[5, 5]}
+            coordinates={routeCoordinates}
+            strokeColor={riskColor}
+            strokeWidth={4}
+            lineDashPattern={[8, 6]}
           />
         )}
       </MapView>
 
-      {!lastBrief && (
+      {lastBrief ? (
+        <View style={styles.topCard}>
+          <View style={styles.routeRow}>
+            <View style={styles.routeItem}>
+              <Text style={styles.routeLabel}>DEP</Text>
+              <Text style={styles.routeIcao}>{dep?.icao || '-'}</Text>
+            </View>
+
+            <Ionicons name="airplane" size={20} color={COLORS.primaryLight} />
+
+            <View style={styles.routeItem}>
+              <Text style={styles.routeLabel}>ARR</Text>
+              <Text style={styles.routeIcao}>{arr?.icao || '-'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.riskPill}>
+            <View style={[styles.riskDot, { backgroundColor: riskColor }]} />
+            <Text style={styles.riskText}>
+              Risk Skoru: %{lastBrief.risk?.score ?? '-'}
+            </Text>
+          </View>
+        </View>
+      ) : (
         <View style={styles.banner}>
-          <Ionicons name="information-circle" size={20} color={COLORS.primaryLight} style={{ marginRight: SPACING.sm }} />
+          <Ionicons
+            name="information-circle"
+            size={20}
+            color={COLORS.primaryLight}
+            style={{ marginRight: SPACING.sm }}
+          />
           <Text style={styles.bannerText}>
             Rota çizmek için Brifing sekmesinden uçuş analizi yapın.
           </Text>
@@ -152,6 +270,58 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
+  },
+  topCard: {
+    position: 'absolute',
+    top: SPACING.lg,
+    left: SPACING.md,
+    right: SPACING.md,
+    backgroundColor: COLORS.surface + 'E6',
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.sm,
+  },
+  routeItem: {
+    flex: 1,
+  },
+  routeLabel: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 'bold',
+  },
+  routeIcao: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.lg,
+    fontWeight: 'bold',
+  },
+  riskPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  riskDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 99,
+    marginRight: 6,
+  },
+  riskText: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 'bold',
   },
   callout: {
     padding: SPACING.sm,

@@ -30,21 +30,44 @@ export default function AirportPicker() {
   const [suggestions, setSuggestions] = useState<AirportRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!query || query.length < 2) {
-      setSuggestions([]);
-      return;
+useEffect(() => {
+  const trimmedQuery = query.trim();
+
+  if (!trimmedQuery || trimmedQuery.length < 2) {
+    setSuggestions([]);
+    setLoading(false);
+    return;
+  }
+
+  let cancelled = false;
+
+  const delayDebounce = setTimeout(async () => {
+    setLoading(true);
+
+    try {
+      const res = await searchAirports(trimmedQuery);
+
+      if (!cancelled) {
+        setSuggestions(res.matches);
+      }
+    } catch (error) {
+      console.error('Airport search failed:', error);
+
+      if (!cancelled) {
+        setSuggestions([]);
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false);
+      }
     }
+  }, 300);
 
-    const delayDebounce = setTimeout(async () => {
-      setLoading(true);
-      const res = await searchAirports(query);
-      setSuggestions(res.matches);
-      setLoading(false);
-    }, 300);
-
-    return () => clearTimeout(delayDebounce);
-  }, [query]);
+  return () => {
+    cancelled = true;
+    clearTimeout(delayDebounce);
+  };
+}, [query]);
 
   const selectAirport = (item: AirportRow) => {
     if (activeInput === 'dep') {
