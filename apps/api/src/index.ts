@@ -135,10 +135,10 @@ async function postAiJson<T>(
   }
 }
 
-async function parseAiNotams(items: any[]): Promise<AiNotamAnalysis[]> {
+async function parseAiNotams(items: any[]): Promise<any[]> {
   if (!Array.isArray(items) || items.length === 0) return [];
 
-  const parsed = await postAiJson<AiNotamAnalysis[]>("/ai/notam/parse", {
+  const parsed = await postAiJson<any[]>("/ai/notam/parse", {
     items: items.map((n) => ({
       id: n?.id,
       text: n?.text ?? n?.raw,
@@ -147,7 +147,18 @@ async function parseAiNotams(items: any[]): Promise<AiNotamAnalysis[]> {
     })),
   });
 
-  return Array.isArray(parsed) ? parsed : [];
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.map((p, idx) => {
+    const orig = items[idx];
+    return {
+      ...p,
+      id: orig?.id || p.id,
+      critical: Boolean(orig?.critical || p.critical),
+      synthetic: Boolean(orig?.synthetic || p.synthetic),
+      event: orig?.event,
+    };
+  });
 }
 
 function safeReadJson(filePath: string): any | null {

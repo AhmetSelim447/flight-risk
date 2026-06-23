@@ -486,7 +486,7 @@ async function enrichedText(icao: string, event: NotamEvent): Promise<string> {
     const text = typeof rendered?.text === "string" ? rendered.text.trim() : "";
 
     // Validation gate: text layer may only change wording, not event semantics.
-    if (!text.includes(icao) || text.length < base.length) return base;
+    if (!text.includes(icao) || text.length < 5) return base;
     return text;
   } catch {
     return base;

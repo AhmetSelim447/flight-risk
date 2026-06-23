@@ -460,7 +460,9 @@ def llm_parse_notams(req: ParseRequest) -> Optional[List[NotamOut]]:
         "Use only the supplied NOTAM text. Classify operational impact for pilots and dispatchers. "
         "Allowed severity values: Critical, Medium, Info. Allowed impacts: runway, nav, ops_hours, "
         "airspace, lighting, surface, weather. Score must be 0-100. Critical means runway closure, "
-        "approach aid outage, surface/braking issue, airspace restriction, ops-hour restriction, or a directly relevant hazard."
+        "approach aid outage, surface/braking issue, airspace restriction, ops-hour restriction, or a directly relevant hazard. "
+        "Write the 'summary' and 'operationalImpact' in Turkish. The translations must be extremely simplified, clear, and easy to understand at a glance for pilots and dispatchers. "
+        "Avoid complex sentences. Use direct, practical aviation terminology in Turkish (e.g., 'Pist 06L/24R kapalı', 'ILS çalışmıyor')."
     )
     payload = {
         "schema": {
@@ -542,21 +544,34 @@ def render_notam(req: NotamRenderRequest):
     severity = str(event.get("severity") or "Info")
     reason = str(event.get("reason") or "").strip()
     runway = event.get("affectedRunway")
-    runway_text = f" RWY {runway}" if runway else ""
+    runway_text = f" Pist {runway}" if runway else ""
+    
+    eng_text = f"{severity} seviye sentetik NOTAM ({icao}{runway_text}): {base} Kategori: {category}. Operasyonel etki: {reason}"
 
+    if LLM_ENABLED:
+        system_prompt = (
+            "You are an aviation translation assistant. "
+            "Translate the provided synthetic NOTAM text into highly simplified, clear Turkish, "
+            "suitable for pilots and dispatchers to read quickly at a glance. Avoid complex grammar. "
+            "Return ONLY a JSON object with a 'translated_text' field containing the Turkish translation."
+        )
+        payload = {"text_to_translate": eng_text}
+        
+        parsed = call_openai_json(system_prompt, payload, max_tokens=200)
+        if parsed and isinstance(parsed, dict) and parsed.get("translated_text"):
+            tr_text = parsed.get("translated_text")
+            if icao in tr_text:
+                return NotamRenderResponse(text=tr_text, source="ai_text")
+
+    # Fallback to mostly English if LLM fails
     text = (
         f"{severity} synthetic NOTAM advisory for {icao}{runway_text}: "
         f"{base} Category: {category}."
     )
-
     if reason:
         text += f" Operational rationale: {reason}"
 
-    # Validation gate: the text layer may not remove the station identity or produce an empty result.
-    if icao not in text or len(text) < len(base):
-        return NotamRenderResponse(text=base, source="fallback")
-
-    return NotamRenderResponse(text=text, source="ai_text")
+    return NotamRenderResponse(text=text, source="fallback")
 
 
 def parsed_met(report: Optional[Dict[str, Any]]) -> Dict[str, Any]:
