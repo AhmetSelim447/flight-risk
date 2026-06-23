@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
@@ -22,13 +23,23 @@ export default function Profile() {
     windUnit,
     distUnit,
     notificationsEnabled,
+    profileLoading,
+    profileError,
     setCrossLimit,
     setWindUnit,
     setDistUnit,
     setNotifications,
+    loadProfileSettings,
+    saveProfileSettings,
   } = useSettingsStore();
 
   const { depIcao, arrIcao, lastBrief } = useBriefStore();
+
+  useEffect(() => {
+    if (user?.id) {
+      loadProfileSettings(user.id);
+    }
+  }, [user?.id, loadProfileSettings]);
 
   const email = user?.email || 'Bilinmeyen E-posta';
   const displayName =
@@ -45,6 +56,11 @@ export default function Profile() {
     typeof lastBrief?.risk?.score === 'number'
       ? `%${Math.round(lastBrief.risk.score)}`
       : '-';
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    await saveProfileSettings(user.id);
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -66,6 +82,13 @@ export default function Profile() {
             <Text style={styles.roleText}>Pilot / Kaptan</Text>
           </View>
         </View>
+
+        {profileError ? (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle" size={18} color={COLORS.danger} />
+            <Text style={styles.errorText}>{profileError}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Pilot Profili</Text>
@@ -271,6 +294,26 @@ export default function Profile() {
               />
             </View>
           </View>
+
+          <TouchableOpacity
+            style={[styles.saveButton, profileLoading && styles.saveButtonDisabled]}
+            onPress={handleSaveProfile}
+            disabled={profileLoading || !user?.id}
+          >
+            {profileLoading ? (
+              <ActivityIndicator color={COLORS.textPrimary} />
+            ) : (
+              <>
+                <Ionicons
+                  name="save-outline"
+                  size={18}
+                  color={COLORS.textPrimary}
+                  style={{ marginRight: SPACING.sm }}
+                />
+                <Text style={styles.saveButtonText}>Profili Kaydet</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -325,15 +368,7 @@ function InfoRow({
   );
 }
 
-function StatBox({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: any;
-}) {
+function StatBox({ label, value, icon }: { label: string; value: string; icon: any }) {
   return (
     <View style={styles.statBox}>
       <Ionicons name={icon} size={20} color={COLORS.primaryLight} />
@@ -346,14 +381,9 @@ function StatBox({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollContent: {
-    padding: SPACING.md,
-    paddingBottom: SPACING.xxl,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scrollContent: { padding: SPACING.md, paddingBottom: SPACING.xxl },
+
   profileHeader: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
@@ -401,9 +431,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  section: {
-    marginBottom: SPACING.xl,
-  },
+
+  section: { marginBottom: SPACING.xl },
   sectionTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
@@ -420,6 +449,23 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
   },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.danger + '20',
+    borderColor: COLORS.danger,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  errorText: {
+    flex: 1,
+    color: COLORS.danger,
+    fontSize: FONT_SIZES.sm,
+    marginLeft: SPACING.sm,
+  },
+
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -481,6 +527,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     fontWeight: 'bold',
   },
+
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -492,9 +539,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  icon: {
-    marginRight: SPACING.md,
-  },
+  icon: { marginRight: SPACING.md },
   rowTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
@@ -560,6 +605,24 @@ const styles = StyleSheet.create({
   },
   toggleBtnTextActive: {
     color: COLORS.textPrimary,
+  },
+  saveButton: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: SPACING.md,
+    minHeight: 50,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    color: COLORS.textPrimary,
+    fontWeight: 'bold',
+    fontSize: FONT_SIZES.md,
   },
   signOutButton: {
     flexDirection: 'row',
