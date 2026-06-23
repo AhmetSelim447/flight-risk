@@ -8,6 +8,8 @@ import fs from "fs";
 import path from "path";
 import net from "net";
 
+
+
 // ✅ Swagger UI
 import swaggerUi from "swagger-ui-express";
 
@@ -34,7 +36,12 @@ import {
 } from "./data/airports";
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // dayanıklılık

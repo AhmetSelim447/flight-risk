@@ -19,7 +19,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: false,
   initialized: false,
 
-  initialize: async () => {
+ /* initialize: async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       set({ session, user: session?.user ?? null, initialized: true });
@@ -36,7 +36,48 @@ export const useAuthStore = create<AuthState>((set) => ({
       console.error('Supabase onAuthStateChange listener setup error:', error);
     }
   },
+*/
 
+initialize: async () => {
+  if (!supabase) {
+    set({
+      session: null,
+      user: null,
+      initialized: true,
+    });
+    return;
+  }
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    set({
+      session,
+      user: session?.user ?? null,
+      initialized: true,
+    });
+  } catch (error) {
+    console.error('Supabase auth initialization error:', error);
+    set({
+      session: null,
+      user: null,
+      initialized: true,
+    });
+  }
+
+  try {
+    supabase.auth.onAuthStateChange((_event, session) => {
+      set({
+        session,
+        user: session?.user ?? null,
+      });
+    });
+  } catch (error) {
+    console.error('Supabase onAuthStateChange listener setup error:', error);
+  }
+},
   signIn: async (email, password) => {
     set({ loading: true });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
