@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -25,11 +25,30 @@ import AlternateList from '../../components/AlternateList';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function Brief() {
-  const { depIcao, arrIcao, isLoading, lastBrief, setLoading, setLastBrief, clear } =
-    useBriefStore();
+  const {
+    depIcao,
+    arrIcao,
+    isLoading,
+    lastBrief,
+    setLoading,
+    setLastBrief,
+    clear,
+    setDeparture,
+    setArrival,
+  } = useBriefStore();
 
-  const { crossLimitKt } = useSettingsStore();
+  const { crossLimitKt, defaultDep, defaultArr } = useSettingsStore();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!depIcao && defaultDep) {
+      setDeparture(defaultDep, 'Varsayılan Kalkış');
+    }
+
+    if (!arrIcao && defaultArr) {
+      setArrival(defaultArr, 'Varsayılan Varış');
+    }
+  }, [depIcao, arrIcao, defaultDep, defaultArr, setDeparture, setArrival]);
 
   const handleFetchBrief = async () => {
     if (!depIcao || !arrIcao) {
@@ -160,7 +179,13 @@ export default function Brief() {
               <View style={styles.headerActions}>
                 <TouchableOpacity
                   style={styles.pdfBtn}
-                  onPress={() => openBriefPdf(depIcao, arrIcao, crossLimitKt)}
+                  onPress={() =>
+                    openBriefPdf(
+                      lastBrief.airports.dep.icao,
+                      lastBrief.airports.arr.icao,
+                      crossLimitKt
+                    )
+                  }
                 >
                   <Ionicons
                     name="document-text-outline"
@@ -183,7 +208,7 @@ export default function Brief() {
 
             <View style={styles.sectionCard}>
               <SectionTitle icon="analytics" title="Genel Risk Değerlendirmesi" />
-              
+
               <RiskGauge score={lastBrief.risk.score} />
 
               <RiskIntelligenceCard risk={lastBrief.risk} />
@@ -192,7 +217,6 @@ export default function Brief() {
                 score={lastBrief.risk.score}
                 reasons={lastBrief.risk.reasons}
               />
-            
             </View>
 
             <View style={styles.sectionCard}>

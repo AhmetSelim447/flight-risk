@@ -31,6 +31,7 @@ export default function Profile() {
     setNotifications,
     loadProfileSettings,
     saveProfileSettings,
+
   } = useSettingsStore();
 
   const { depIcao, arrIcao, lastBrief } = useBriefStore();
@@ -57,10 +58,10 @@ export default function Profile() {
       ? `%${Math.round(lastBrief.risk.score)}`
       : '-';
 
-  const handleSaveProfile = async () => {
-    if (!user?.id) return;
-    await saveProfileSettings(user.id);
-  };
+const handleSaveProfile = async () => {
+  if (!user?.id) return;
+  await saveProfileSettings(user.id, depIcao, arrIcao);
+};
 
   const handleSignOut = async () => {
     await signOut();
