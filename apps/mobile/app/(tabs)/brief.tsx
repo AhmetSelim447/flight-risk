@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBriefStore } from '../../stores/briefStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { fetchBrief } from '../../lib/api';
+import { openBriefPdf } from '../../lib/pdf';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../constants/theme';
 import AirportPicker from '../../components/AirportPicker';
 import RiskGauge from '../../components/RiskGauge';
@@ -23,15 +24,8 @@ import AlternateList from '../../components/AlternateList';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function Brief() {
-  const {
-    depIcao,
-    arrIcao,
-    isLoading,
-    lastBrief,
-    setLoading,
-    setLastBrief,
-    clear,
-  } = useBriefStore();
+  const { depIcao, arrIcao, isLoading, lastBrief, setLoading, setLastBrief, clear } =
+    useBriefStore();
 
   const { crossLimitKt } = useSettingsStore();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -162,10 +156,28 @@ export default function Brief() {
                 </Text>
               </View>
 
-              <TouchableOpacity style={styles.clearBtn} onPress={clear}>
-                <Ionicons name="trash-outline" size={15} color={COLORS.textSecondary} />
-                <Text style={styles.clearBtnText}>Temizle</Text>
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.pdfBtn}
+                  onPress={() => openBriefPdf(depIcao, arrIcao, crossLimitKt)}
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={15}
+                    color={COLORS.textPrimary}
+                  />
+                  <Text style={styles.pdfBtnText}>PDF</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.clearBtn} onPress={clear}>
+                  <Ionicons
+                    name="trash-outline"
+                    size={15}
+                    color={COLORS.textSecondary}
+                  />
+                  <Text style={styles.clearBtnText}>Temizle</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.sectionCard}>
@@ -201,10 +213,7 @@ export default function Brief() {
             </View>
 
             <View style={styles.sectionCard}>
-              <SectionTitle
-                icon="warning"
-                title={`Aktif NOTAM'lar (${allNotams.length})`}
-              />
+              <SectionTitle icon="warning" title={`Aktif NOTAM'lar (${allNotams.length})`} />
 
               {allNotams.length > 0 ? (
                 allNotams.map((notam, idx) => <NotamCard key={idx} item={notam} />)
@@ -236,14 +245,9 @@ function SectionTitle({ icon, title }: { icon: any; title: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollContent: {
-    padding: SPACING.md,
-    paddingBottom: SPACING.xxl,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scrollContent: { padding: SPACING.md, paddingBottom: SPACING.xxl },
+
   heroCard: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
@@ -252,16 +256,9 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     marginBottom: SPACING.md,
   },
-  heroTitle: {
-    color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
-  },
-  heroSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: FONT_SIZES.sm,
-    marginTop: 4,
-  },
+  heroTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.lg, fontWeight: 'bold' },
+  heroSubtitle: { color: COLORS.textSecondary, fontSize: FONT_SIZES.sm, marginTop: 4 },
+
   limitPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -280,6 +277,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontWeight: 'bold',
   },
+
   routePreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -290,20 +288,15 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     marginBottom: SPACING.md,
   },
-  routeAirport: {
-    flex: 1,
-  },
-  routeLabel: {
-    color: COLORS.textMuted,
-    fontSize: FONT_SIZES.xs,
-    fontWeight: 'bold',
-  },
+  routeAirport: { flex: 1 },
+  routeLabel: { color: COLORS.textMuted, fontSize: FONT_SIZES.xs, fontWeight: 'bold' },
   routeIcao: {
     color: COLORS.textPrimary,
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
     marginTop: 2,
   },
+
   briefButton: {
     backgroundColor: COLORS.primary,
     padding: SPACING.md,
@@ -313,18 +306,10 @@ const styles = StyleSheet.create({
     height: 54,
     justifyContent: 'center',
   },
-  briefButtonDisabled: {
-    opacity: 0.5,
-  },
-  btnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  briefButtonText: {
-    color: COLORS.textPrimary,
-    fontWeight: 'bold',
-    fontSize: FONT_SIZES.md,
-  },
+  briefButtonDisabled: { opacity: 0.5 },
+  btnInner: { flexDirection: 'row', alignItems: 'center' },
+  briefButtonText: { color: COLORS.textPrimary, fontWeight: 'bold', fontSize: FONT_SIZES.md },
+
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -335,12 +320,8 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm,
     marginBottom: SPACING.md,
   },
-  errorText: {
-    flex: 1,
-    color: COLORS.danger,
-    fontSize: FONT_SIZES.sm,
-    marginLeft: SPACING.sm,
-  },
+  errorText: { flex: 1, color: COLORS.danger, fontSize: FONT_SIZES.sm, marginLeft: SPACING.sm },
+
   loadingContainer: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
@@ -363,6 +344,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING.sm,
   },
+
   emptyCard: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
@@ -383,24 +365,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
   },
-  resultsContainer: {
-    marginTop: SPACING.md,
-  },
+
+  resultsContainer: { marginTop: SPACING.md },
   resultsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.md,
+    gap: SPACING.sm,
   },
-  resultsTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: 'bold',
+  resultsTitle: { fontSize: FONT_SIZES.lg, fontWeight: 'bold', color: COLORS.textPrimary },
+  resultsSubtitle: { color: COLORS.textSecondary, fontSize: FONT_SIZES.sm, marginTop: 2 },
+
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  pdfBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 7,
+  },
+  pdfBtnText: {
     color: COLORS.textPrimary,
-  },
-  resultsSubtitle: {
-    color: COLORS.textSecondary,
-    fontSize: FONT_SIZES.sm,
-    marginTop: 2,
+    fontSize: FONT_SIZES.xs,
+    marginLeft: 4,
+    fontWeight: 'bold',
   },
   clearBtn: {
     flexDirection: 'row',
@@ -418,6 +412,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: 'bold',
   },
+
   sectionCard: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
@@ -431,11 +426,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  sectionTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-  },
+  sectionTitle: { fontSize: FONT_SIZES.md, fontWeight: 'bold', color: COLORS.textPrimary },
   emptyNotamText: {
     color: COLORS.textSecondary,
     fontStyle: 'italic',

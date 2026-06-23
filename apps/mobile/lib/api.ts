@@ -156,3 +156,24 @@ function normalizeAirportRow(a: RawAirport): AirportRow {
     runways: a.runways,
   };
 }
+
+export function getBriefPdfUrl(
+  depIcao: string,
+  arrIcao: string,
+  crossLimit?: number
+): string {
+  const dep = depIcao.trim().toUpperCase();
+  const arr = arrIcao.trim().toUpperCase();
+
+  const params = new URLSearchParams();
+
+  params.set('dep', dep);
+  params.set('arr', arr);
+
+  if (crossLimit && crossLimit > 0) {
+    params.set('crossLimit', String(crossLimit));
+    params.set('crosswindLimitKt', String(crossLimit));
+  }
+
+  return `${API_BASE}/brief/pdf?${params.toString()}`;
+}
