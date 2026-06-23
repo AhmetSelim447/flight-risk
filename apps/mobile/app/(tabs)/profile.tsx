@@ -1,67 +1,151 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  Switch,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useBriefStore } from '../../stores/briefStore';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function Profile() {
   const { user, signOut } = useAuthStore();
-  const { 
-    crossLimitKt, 
-    windUnit, 
-    distUnit, 
+
+  const {
+    crossLimitKt,
+    windUnit,
+    distUnit,
     notificationsEnabled,
     setCrossLimit,
     setWindUnit,
     setDistUnit,
-    setNotifications 
+    setNotifications,
   } = useSettingsStore();
+
+  const { depIcao, arrIcao, lastBrief } = useBriefStore();
+
+  const email = user?.email || 'Bilinmeyen E-posta';
+  const displayName =
+    user?.user_metadata?.display_name || email.split('@')[0] || 'Kaptan';
+
+  const defaultDep = depIcao || 'Tanımlı değil';
+  const defaultArr = arrIcao || 'Tanımlı değil';
+
+  const lastRoute = lastBrief
+    ? `${lastBrief.airports?.dep?.icao || '-'} → ${lastBrief.airports?.arr?.icao || '-'}`
+    : 'Henüz analiz yok';
+
+  const lastRisk =
+    typeof lastBrief?.risk?.score === 'number'
+      ? `%${Math.round(lastBrief.risk.score)}`
+      : '-';
 
   const handleSignOut = async () => {
     await signOut();
   };
 
-  const email = user?.email || 'Bilinmeyen E-posta';
-  const displayName = user?.user_metadata?.display_name || email.split('@')[0] || 'Kaptan';
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
-        {/* Pilot Info */}
         <View style={styles.profileHeader}>
-          <Ionicons name="person-circle-outline" size={80} color={COLORS.primary} />
+          <View style={styles.avatarCircle}>
+            <Ionicons name="person" size={48} color={COLORS.textPrimary} />
+          </View>
+
           <Text style={styles.nameText}>{displayName}</Text>
           <Text style={styles.emailText}>{email}</Text>
-          <Text style={styles.roleText}>Pilot / Kaptan</Text>
+
+          <View style={styles.rolePill}>
+            <Ionicons name="airplane" size={13} color={COLORS.primaryLight} />
+            <Text style={styles.roleText}>Pilot / Kaptan</Text>
+          </View>
         </View>
 
-        {/* Settings Group */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Pilot Profili</Text>
+
+          <View style={styles.card}>
+            <InfoRow
+              icon="shield-checkmark"
+              title="Rol"
+              value="Pilot"
+              subtitle="Uçuş risk değerlendirme profili"
+            />
+
+            <View style={styles.separator} />
+
+            <InfoRow
+              icon="navigate-circle"
+              title="Varsayılan Kalkış"
+              value={defaultDep}
+              subtitle="Son seçilen kalkış meydanı"
+            />
+
+            <View style={styles.separator} />
+
+            <InfoRow
+              icon="location"
+              title="Varsayılan Varış"
+              value={defaultArr}
+              subtitle="Son seçilen varış meydanı"
+            />
+
+            <View style={styles.separator} />
+
+            <InfoRow
+              icon="swap-horizontal"
+              title="Crosswind Limiti"
+              value={`${crossLimitKt} kt`}
+              subtitle="Pilot yan rüzgâr toleransı"
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Son Brifing Özeti</Text>
+
+          <View style={styles.statsGrid}>
+            <StatBox label="Son Rota" value={lastRoute} icon="git-branch" />
+            <StatBox label="Son Risk" value={lastRisk} icon="pulse" />
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Uçuş Tercihleri</Text>
-          
+
           <View style={styles.card}>
-            {/* Crosswind Limit */}
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Ionicons name="swap-horizontal" size={22} color={COLORS.primaryLight} style={styles.icon} />
+                <Ionicons
+                  name="swap-horizontal"
+                  size={22}
+                  color={COLORS.primaryLight}
+                  style={styles.icon}
+                />
                 <View>
                   <Text style={styles.rowTitle}>Yan Rüzgar Limiti</Text>
-                  <Text style={styles.rowSubtitle}>Maksimum limit (Crosswind)</Text>
+                  <Text style={styles.rowSubtitle}>Maksimum crosswind limiti</Text>
                 </View>
               </View>
+
               <View style={styles.limitControl}>
-                <TouchableOpacity 
-                  style={styles.limitBtn} 
+                <TouchableOpacity
+                  style={styles.limitBtn}
                   onPress={() => setCrossLimit(Math.max(5, crossLimitKt - 1))}
                 >
                   <Text style={styles.limitBtnText}>-</Text>
                 </TouchableOpacity>
+
                 <Text style={styles.limitValue}>{crossLimitKt} kt</Text>
-                <TouchableOpacity 
-                  style={styles.limitBtn} 
+
+                <TouchableOpacity
+                  style={styles.limitBtn}
                   onPress={() => setCrossLimit(Math.min(40, crossLimitKt + 1))}
                 >
                   <Text style={styles.limitBtnText}>+</Text>
@@ -71,72 +155,117 @@ export default function Profile() {
 
             <View style={styles.separator} />
 
-            {/* Wind Unit */}
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Ionicons name="speedometer" size={22} color={COLORS.primaryLight} style={styles.icon} />
+                <Ionicons
+                  name="speedometer"
+                  size={22}
+                  color={COLORS.primaryLight}
+                  style={styles.icon}
+                />
                 <View>
                   <Text style={styles.rowTitle}>Rüzgar Birimi</Text>
                   <Text style={styles.rowSubtitle}>Hız gösterim birimi</Text>
                 </View>
               </View>
+
               <View style={styles.toggleContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.toggleBtn, windUnit === 'kt' && styles.toggleBtnActive]}
                   onPress={() => setWindUnit('kt')}
                 >
-                  <Text style={[styles.toggleBtnText, windUnit === 'kt' && styles.toggleBtnTextActive]}>KT</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      windUnit === 'kt' && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    KT
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={[styles.toggleBtn, windUnit === 'kmh' && styles.toggleBtnActive]}
                   onPress={() => setWindUnit('kmh')}
                 >
-                  <Text style={[styles.toggleBtnText, windUnit === 'kmh' && styles.toggleBtnTextActive]}>KM/H</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      windUnit === 'kmh' && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    KM/H
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.separator} />
 
-            {/* Distance Unit */}
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Ionicons name="navigate" size={22} color={COLORS.primaryLight} style={styles.icon} />
+                <Ionicons
+                  name="navigate"
+                  size={22}
+                  color={COLORS.primaryLight}
+                  style={styles.icon}
+                />
                 <View>
                   <Text style={styles.rowTitle}>Mesafe Birimi</Text>
                   <Text style={styles.rowSubtitle}>Mesafe gösterim birimi</Text>
                 </View>
               </View>
+
               <View style={styles.toggleContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.toggleBtn, distUnit === 'nm' && styles.toggleBtnActive]}
                   onPress={() => setDistUnit('nm')}
                 >
-                  <Text style={[styles.toggleBtnText, distUnit === 'nm' && styles.toggleBtnTextActive]}>NM</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      distUnit === 'nm' && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    NM
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={[styles.toggleBtn, distUnit === 'km' && styles.toggleBtnActive]}
                   onPress={() => setDistUnit('km')}
                 >
-                  <Text style={[styles.toggleBtnText, distUnit === 'km' && styles.toggleBtnTextActive]}>KM</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      distUnit === 'km' && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    KM
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.separator} />
 
-            {/* Notifications */}
             <View style={styles.row}>
               <View style={styles.rowLeft}>
-                <Ionicons name="notifications" size={22} color={COLORS.primaryLight} style={styles.icon} />
+                <Ionicons
+                  name="notifications"
+                  size={22}
+                  color={COLORS.primaryLight}
+                  style={styles.icon}
+                />
                 <View>
                   <Text style={styles.rowTitle}>Bildirimler</Text>
                   <Text style={styles.rowSubtitle}>Hava durumu değişiklik uyarıları</Text>
                 </View>
               </View>
-              <Switch 
-                value={notificationsEnabled} 
-                onValueChange={setNotifications} 
+
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={setNotifications}
                 trackColor={{ false: COLORS.border, true: COLORS.primary }}
                 thumbColor={COLORS.textPrimary}
               />
@@ -144,14 +273,75 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* Action Button */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Uygulama Bilgisi</Text>
+
+          <View style={styles.appInfoCard}>
+            <Ionicons name="airplane-outline" size={24} color={COLORS.primaryLight} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.appTitle}>Flight-Risk Mobile</Text>
+              <Text style={styles.appSubtitle}>
+                AI destekli uçuş risk değerlendirme ve brifing sistemi
+              </Text>
+            </View>
+            <Text style={styles.versionText}>v1.0</Text>
+          </View>
+        </View>
+
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={22} color={COLORS.riskRed} style={{ marginRight: SPACING.sm }} />
+          <Ionicons
+            name="log-out-outline"
+            size={22}
+            color={COLORS.riskRed}
+            style={{ marginRight: SPACING.sm }}
+          />
           <Text style={styles.signOutButtonText}>Güvenli Çıkış Yap</Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function InfoRow({
+  icon,
+  title,
+  subtitle,
+  value,
+}: {
+  icon: any;
+  title: string;
+  subtitle: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={22} color={COLORS.primaryLight} style={styles.icon} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
+function StatBox({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon: any;
+}) {
+  return (
+    <View style={styles.statBox}>
+      <Ionicons name={icon} size={20} color={COLORS.primaryLight} />
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -173,22 +363,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: SPACING.xl,
   },
+  avatarCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
+  },
   nameText: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
-    marginTop: SPACING.sm,
   },
   emailText: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
   },
+  rolePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    marginTop: SPACING.md,
+  },
   roleText: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.primaryLight,
     fontWeight: 'bold',
-    marginTop: SPACING.sm,
+    marginLeft: 6,
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
@@ -210,6 +419,67 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  infoValue: {
+    color: COLORS.textPrimary,
+    fontWeight: 'bold',
+    fontSize: FONT_SIZES.sm,
+    maxWidth: 110,
+    textAlign: 'right',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+  },
+  statLabel: {
+    color: COLORS.textMuted,
+    fontSize: FONT_SIZES.xs,
+    marginTop: SPACING.sm,
+    fontWeight: 'bold',
+  },
+  statValue: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.md,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  appInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+  },
+  appTitle: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.md,
+    fontWeight: 'bold',
+  },
+  appSubtitle: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.xs,
+    marginTop: 2,
+  },
+  versionText: {
+    color: COLORS.textMuted,
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 'bold',
   },
   row: {
     flexDirection: 'row',
