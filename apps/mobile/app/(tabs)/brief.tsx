@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import RiskIntelligenceCard from '../../components/RiskIntelligenceCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBriefStore } from '../../stores/briefStore';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -182,11 +183,16 @@ export default function Brief() {
 
             <View style={styles.sectionCard}>
               <SectionTitle icon="analytics" title="Genel Risk Değerlendirmesi" />
+              
               <RiskGauge score={lastBrief.risk.score} />
+
+              <RiskIntelligenceCard risk={lastBrief.risk} />
+
               <RiskSummaryCard
                 score={lastBrief.risk.score}
                 reasons={lastBrief.risk.reasons}
               />
+            
             </View>
 
             <View style={styles.sectionCard}>
