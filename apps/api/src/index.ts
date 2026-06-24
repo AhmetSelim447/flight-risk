@@ -2669,3 +2669,71 @@ start().catch((e) => {
   console.error("[start] failed:", e);
   process.exitCode = 1;
 });
+
+
+app.get('/traffic/live', async (req, res) => {
+  try {
+    const minLat = Number(req.query.minLat);
+    const maxLat = Number(req.query.maxLat);
+    const minLng = Number(req.query.minLng);
+    const maxLng = Number(req.query.maxLng);
+
+    if (
+      !Number.isFinite(minLat) ||
+      !Number.isFinite(maxLat) ||
+      !Number.isFinite(minLng) ||
+      !Number.isFinite(maxLng)
+    ) {
+      return res.status(400).json({ error: 'invalid bounds' });
+    }
+
+    const url =
+      `https://opensky-network.org/api/states/all` +
+      `?lamin=${encodeURIComponent(String(minLat))}` +
+      `&lamax=${encodeURIComponent(String(maxLat))}` +
+      `&lomin=${encodeURIComponent(String(minLng))}` +
+      `&lomax=${encodeURIComponent(String(maxLng))}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      return res.status(200).json({
+        aircraft: [],
+        source: 'opensky',
+        warning: `OpenSky returned ${response.status}`,
+      });
+    }
+
+    const data = await response.json();
+
+    const aircraft = Array.isArray(data.states)
+      ? data.states
+          .map((s: any[]) => ({
+            icao24: s[0],
+            callsign: typeof s[1] === 'string' ? s[1].trim() : '',
+            originCountry: s[2],
+            lon: s[5],
+            lat: s[6],
+            altitude: s[7],
+            velocity: s[9],
+            heading: s[10],
+          }))
+          .filter((a: any) => typeof a.lat === 'number' && typeof a.lon === 'number')
+      : [];
+
+    return res.json({
+      aircraft,
+      count: aircraft.length,
+      source: 'opensky',
+      fetchedAt: Date.now(),
+    });
+  } catch (error) {
+    console.error('[traffic/live] failed:', error);
+
+    return res.status(200).json({
+      aircraft: [],
+      source: 'opensky',
+      warning: 'traffic unavailable',
+    });
+  }
+});
