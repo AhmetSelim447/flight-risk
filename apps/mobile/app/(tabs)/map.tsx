@@ -1,10 +1,16 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useBriefStore } from '../../stores/briefStore';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../constants/theme';
 import RouteLeafletMap from '../../components/RouteLeafletMap';
+import {
+  fetchNearbyAirports,
+  fetchLiveAircraft,
+  NearbyAirportRow,
+  LiveAircraftRow,
+} from '../../lib/api';
 
 type MapAirport = {
   icao?: string;
@@ -13,6 +19,8 @@ type MapAirport = {
   coords?: { lat?: number; lng?: number };
   lat?: number;
   lon?: number;
+  distance_nm?: number;
+  distanceKm?: number;
 };
 
 function getCoord(a?: MapAirport | null) {
@@ -46,8 +54,28 @@ function getRiskLabel(riskClass?: string, score?: number) {
   return 'Düşük Risk';
 }
 
+function buildBounds(dep?: { lat: number; lng: number } | null, arr?: { lat: number; lng: number } | null) {
+  const lat1 = dep?.lat ?? 35;
+  const lat2 = arr?.lat ?? 43;
+  const lng1 = dep?.lng ?? 25;
+  const lng2 = arr?.lng ?? 45;
+
+  return {
+    minLat: Math.min(lat1, lat2) - 1,
+    maxLat: Math.max(lat1, lat2) + 1,
+    minLng: Math.min(lng1, lng2) - 1,
+    maxLng: Math.max(lng1, lng2) + 1,
+  };
+}
+
 export default function RouteMap() {
   const { lastBrief } = useBriefStore();
+
+  const [nearby, setNearby] = useState<NearbyAirportRow[]>([]);
+  const [aircraft, setAircraft] = useState<LiveAircraftRow[]>([]);
+  const [loadingExtras, setLoadingExtras] = useState(false);
+  const [showNearby, setShowNearby] = useState(true);
+  const [showTraffic, setShowTraffic] = useState(true);
 
   const dep = lastBrief?.airports?.dep as MapAirport | undefined;
   const arr = lastBrief?.airports?.arr as MapAirport | undefined;
@@ -59,6 +87,41 @@ export default function RouteMap() {
   const riskClass = lastBrief?.risk?.class;
   const riskColor = getRiskColor(riskClass, riskScore);
   const riskLabel = getRiskLabel(riskClass, riskScore);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadExtras() {
+      if (!depCoord && !arrCoord) return;
+
+      setLoadingExtras(true);
+
+      try {
+        const center = depCoord || arrCoord;
+        if (!center) return;
+
+        const bounds = buildBounds(depCoord, arrCoord);
+
+        const [nearbyRows, aircraftRows] = await Promise.all([
+          fetchNearbyAirports(center.lat, center.lng, 160),
+          fetchLiveAircraft(bounds.minLat, bounds.maxLat, bounds.minLng, bounds.maxLng),
+        ]);
+
+        if (!alive) return;
+
+        setNearby(nearbyRows);
+        setAircraft(aircraftRows);
+      } finally {
+        if (alive) setLoadingExtras(false);
+      }
+    }
+
+    loadExtras();
+
+    return () => {
+      alive = false;
+    };
+  }, [depCoord?.lat, depCoord?.lng, arrCoord?.lat, arrCoord?.lng]);
 
   const alternates = useMemo(() => {
     const riskAny = lastBrief?.risk as any;
@@ -74,16 +137,73 @@ export default function RouteMap() {
         const coord = getCoord(a);
         if (!coord) return null;
 
+        const distance =
+          typeof a.distance_nm === 'number'
+            ? `${Math.round(a.distance_nm)} NM`
+            : typeof a.distanceKm === 'number'
+              ? `${Math.round(a.distanceKm)} km`
+              : '';
+
         return {
           label: String(a.icao || a.ident || 'ALT'),
           role: 'ALT' as const,
           lat: coord.lat,
           lng: coord.lng,
           name: a.name || a.city || 'Yedek meydan',
+          extra: distance ? `Mesafe: ${distance}` : '',
         };
       })
       .filter(Boolean);
   }, [lastBrief]);
+
+  const nearbyPoints = useMemo(() => {
+    if (!showNearby) return [];
+
+    return nearby
+      .map((a) => {
+        const coord = getCoord(a as any);
+        if (!coord) return null;
+
+        const code = a.icao || 'NEAR';
+        const distance =
+          typeof a.distance_nm === 'number'
+            ? `${Math.round(a.distance_nm)} NM`
+            : typeof a.distanceKm === 'number'
+              ? `${Math.round(a.distanceKm)} km`
+              : '';
+
+        return {
+          label: code,
+          role: 'NEAR' as const,
+          lat: coord.lat,
+          lng: coord.lng,
+          name: a.name || a.city || 'Yakın meydan',
+          extra: distance ? `Mesafe: ${distance}` : '',
+        };
+      })
+      .filter(Boolean);
+  }, [nearby, showNearby]);
+
+  const aircraftPoints = useMemo(() => {
+    if (!showTraffic) return [];
+
+    return aircraft
+      .filter((a) => typeof a.lat === 'number' && typeof a.lon === 'number')
+      .slice(0, 40)
+      .map((a) => ({
+        label: a.callsign?.trim() || a.icao24 || 'Aircraft',
+        role: 'ACFT' as const,
+        lat: a.lat,
+        lng: a.lon,
+        name: 'Canlı trafik',
+        extra:
+          typeof a.altitude === 'number'
+            ? `İrtifa: ${Math.round(a.altitude)} m`
+            : typeof a.velocity === 'number'
+              ? `Hız: ${Math.round(a.velocity)} m/s`
+              : '',
+      }));
+  }, [aircraft, showTraffic]);
 
   const depPoint =
     dep && depCoord
@@ -113,6 +233,8 @@ export default function RouteMap() {
         dep={depPoint}
         arr={arrPoint}
         alternates={alternates as any}
+        nearbyAirports={nearbyPoints as any}
+        aircraft={aircraftPoints as any}
         riskColor={riskColor}
       />
 
@@ -140,6 +262,13 @@ export default function RouteMap() {
               {riskLabel} / %{riskScore ?? '-'}
             </Text>
           </View>
+
+          <View style={styles.statsRow}>
+            <Text style={styles.statsText}>ALT: {alternates.length}</Text>
+            <Text style={styles.statsText}>NEAR: {nearbyPoints.length}</Text>
+            <Text style={styles.statsText}>ACFT: {aircraftPoints.length}</Text>
+            {loadingExtras ? <ActivityIndicator size="small" color={COLORS.primaryLight} /> : null}
+          </View>
         </View>
       ) : (
         <View style={styles.banner}>
@@ -155,10 +284,34 @@ export default function RouteMap() {
         </View>
       )}
 
-      <TouchableOpacity style={styles.infoButton}>
-        <Ionicons name="map" size={20} color={COLORS.textPrimary} />
-      </TouchableOpacity>
+      {lastBrief ? (
+        <View style={styles.layerPanel}>
+          <LayerButton label="Nearby" active={showNearby} onPress={() => setShowNearby((v) => !v)} />
+          <LayerButton label="Traffic" active={showTraffic} onPress={() => setShowTraffic((v) => !v)} />
+        </View>
+      ) : null}
     </SafeAreaView>
+  );
+}
+
+function LayerButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.layerButton, active && styles.layerButtonActive]}
+      onPress={onPress}
+    >
+      <Text style={[styles.layerButtonText, active && styles.layerButtonTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -227,18 +380,41 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xs,
     fontWeight: 'bold',
   },
-  infoButton: {
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  statsText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 'bold',
+  },
+  layerPanel: {
     position: 'absolute',
     right: SPACING.md,
     bottom: SPACING.lg,
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
+  layerButton: {
+    backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
     borderWidth: 1,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+  },
+  layerButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  layerButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.xs,
+    fontWeight: 'bold',
+  },
+  layerButtonTextActive: {
+    color: COLORS.textPrimary,
   },
   banner: {
     position: 'absolute',

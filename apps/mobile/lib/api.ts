@@ -185,3 +185,82 @@ export function getBriefPdfUrl(
 
   return `${API_BASE}/brief/pdf?${params.toString()}`;
 }
+
+export type NearbyAirportRow = {
+  icao: string;
+  iata?: string;
+  city?: string;
+  name?: string;
+  lat?: number;
+  lon?: number;
+  coords?: { lat: number; lng: number };
+  distanceKm?: number;
+  distance_nm?: number;
+};
+
+export type LiveAircraftRow = {
+  icao24?: string;
+  callsign?: string;
+  lat: number;
+  lon: number;
+  altitude?: number;
+  velocity?: number;
+  heading?: number;
+};
+
+export async function fetchNearbyAirports(
+  lat: number,
+  lng: number,
+  radiusKm = 120
+): Promise<NearbyAirportRow[]> {
+  try {
+    const url = `${API_BASE}/airports/near?lat=${encodeURIComponent(
+      String(lat)
+    )}&lng=${encodeURIComponent(String(lng))}&radiusKm=${encodeURIComponent(
+      String(radiusKm)
+    )}`;
+
+    const r = await fetch(url);
+    const data = await safeJson<any>(r);
+
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.matches)) return data.matches;
+    if (Array.isArray(data.airports)) return data.airports;
+    if (Array.isArray(data.nearby)) return data.nearby;
+
+    return [];
+  } catch (error) {
+    console.warn('Nearby airports fetch failed:', error);
+    return [];
+  }
+}
+
+export async function fetchLiveAircraft(
+  minLat: number,
+  maxLat: number,
+  minLng: number,
+  maxLng: number
+): Promise<LiveAircraftRow[]> {
+  try {
+    const params = new URLSearchParams();
+
+    params.set('minLat', String(minLat));
+    params.set('maxLat', String(maxLat));
+    params.set('minLng', String(minLng));
+    params.set('maxLng', String(maxLng));
+
+    const url = `${API_BASE}/traffic/live?${params.toString()}`;
+
+    const r = await fetch(url);
+    const data = await safeJson<any>(r);
+
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.aircraft)) return data.aircraft;
+    if (Array.isArray(data.states)) return data.states;
+
+    return [];
+  } catch (error) {
+    console.warn('Live aircraft fetch failed:', error);
+    return [];
+  }
+}

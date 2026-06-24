@@ -1,18 +1,23 @@
 import React, { useMemo } from 'react';
 import { WebView } from 'react-native-webview';
 
+type PointRole = 'DEP' | 'ARR' | 'ALT' | 'NEAR' | 'ACFT';
+
 type Point = {
   label: string;
-  role: 'DEP' | 'ARR' | 'ALT';
+  role: PointRole;
   lat: number;
   lng: number;
   name?: string;
+  extra?: string;
 };
 
 type Props = {
   dep?: Point | null;
   arr?: Point | null;
   alternates?: Point[];
+  nearbyAirports?: Point[];
+  aircraft?: Point[];
   riskColor?: string;
 };
 
@@ -20,10 +25,18 @@ export default function RouteLeafletMap({
   dep,
   arr,
   alternates = [],
+  nearbyAirports = [],
+  aircraft = [],
   riskColor = '#2563eb',
 }: Props) {
   const html = useMemo(() => {
-    const points = [dep, arr, ...alternates].filter(Boolean);
+    const points = [
+      dep,
+      arr,
+      ...alternates,
+      ...nearbyAirports,
+      ...aircraft,
+    ].filter(Boolean);
 
     return `
 <!DOCTYPE html>
@@ -42,9 +55,9 @@ export default function RouteLeafletMap({
     .marker {
       color: white;
       font-weight: 800;
-      font-size: 11px;
-      width: 42px;
-      height: 42px;
+      font-size: 10px;
+      width: 40px;
+      height: 40px;
       border-radius: 999px;
       display: flex;
       align-items: center;
@@ -54,7 +67,16 @@ export default function RouteLeafletMap({
     }
     .dep { background: #3b82f6; }
     .arr { background: ${riskColor}; }
-    .alt { background: #60a5fa; }
+    .alt { background: #10b981; }
+    .near { background: #f59e0b; }
+    .acft {
+      background: #111827;
+      font-size: 18px;
+    }
+    .popup-title {
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -75,19 +97,35 @@ export default function RouteLeafletMap({
     }).addTo(map);
 
     function iconFor(role) {
-      const cls = role === 'DEP' ? 'dep' : role === 'ARR' ? 'arr' : 'alt';
+      let cls = 'near';
+      let text = role;
+
+      if (role === 'DEP') { cls = 'dep'; text = 'DEP'; }
+      if (role === 'ARR') { cls = 'arr'; text = 'ARR'; }
+      if (role === 'ALT') { cls = 'alt'; text = 'ALT'; }
+      if (role === 'NEAR') { cls = 'near'; text = 'NEAR'; }
+      if (role === 'ACFT') { cls = 'acft'; text = '✈'; }
+
       return L.divIcon({
         className: '',
-        html: '<div class="marker ' + cls + '">' + role + '</div>',
-        iconSize: [42, 42],
-        iconAnchor: [21, 21]
+        html: '<div class="marker ' + cls + '">' + text + '</div>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
       });
     }
 
     points.forEach(p => {
+      const title = p.label || p.role;
+      const name = p.name || '';
+      const extra = p.extra || '';
+
       L.marker([p.lat, p.lng], { icon: iconFor(p.role) })
         .addTo(map)
-        .bindPopup('<b>' + p.label + '</b><br/>' + (p.name || p.role));
+        .bindPopup(
+          '<div class="popup-title">' + title + '</div>' +
+          '<div>' + name + '</div>' +
+          (extra ? '<div>' + extra + '</div>' : '')
+        );
     });
 
     if (dep && arr) {
@@ -99,13 +137,13 @@ export default function RouteLeafletMap({
 
     if (points.length > 1) {
       const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
-      map.fitBounds(bounds, { padding: [50, 50] });
+      map.fitBounds(bounds, { padding: [55, 55] });
     }
   </script>
 </body>
 </html>
 `;
-  }, [dep, arr, alternates, riskColor]);
+  }, [dep, arr, alternates, nearbyAirports, aircraft, riskColor]);
 
   return (
     <WebView
