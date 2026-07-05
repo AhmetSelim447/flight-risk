@@ -1,11 +1,25 @@
 import { BriefResponse } from '@flight-risk/shared';
-
-import Constants from "expo-constants";
+import Constants from 'expo-constants';
+import { supabase } from './supabase';
 
 const API_BASE =
   Constants.expoConfig?.extra?.apiUrl ??
   process.env.EXPO_PUBLIC_API_URL ??
-  "http://10.0.2.2:4000";
+  'http://10.0.2.2:4000';
+
+async function getAuthHeaders() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error('Aktif oturum bulunamadı. Lütfen tekrar giriş yapın.');
+  }
+
+  return {
+    Authorization: `Bearer ${session.access_token}`,
+  };
+}
 
 async function safeJson<T>(r: Response): Promise<T> {
   if (!r.ok) {
@@ -48,8 +62,10 @@ export async function searchAirports(
   }
 
   try {
+    const headers = await getAuthHeaders();
     const url = `${API_BASE}/airports/search?q=${encodeURIComponent(q.trim())}`;
-    const r = await fetch(url);
+
+    const r = await fetch(url, { headers });
     const data = await safeJson<RawAirport[] | { matches?: RawAirport[] }>(r);
 
     if (Array.isArray(data)) {
@@ -91,7 +107,9 @@ export async function fetchBrief(
     url += `&etd=${encodeURIComponent(new Date(etdIso).toISOString())}`;
   }
 
-  const r = await fetch(url);
+  const headers = await getAuthHeaders();
+  const r = await fetch(url, { headers });
+
   return safeJson<BriefResponse>(r);
 }
 
@@ -104,11 +122,13 @@ export async function getNearbyAirports(
   }
 
   try {
+    const headers = await getAuthHeaders();
+
     const url = `${API_BASE}/airports/near?ident=${encodeURIComponent(
       icao.trim().toUpperCase()
     )}&radiusKm=${encodeURIComponent(String(radiusKm))}`;
 
-    const r = await fetch(url);
+    const r = await fetch(url, { headers });
     const data = await safeJson<RawAirport[] | { matches?: RawAirport[] }>(r);
 
     if (Array.isArray(data)) {
@@ -168,6 +188,43 @@ function normalizeAirportRow(a: RawAirport): AirportRow {
   };
 }
 
+export async function fetchBriefPdf(
+  depIcao: string,
+  arrIcao: string,
+  crossLimit?: number,
+  etdIso?: string
+): Promise<Blob> {
+  const dep = depIcao.trim().toUpperCase();
+  const arr = arrIcao.trim().toUpperCase();
+
+  const params = new URLSearchParams();
+
+  params.set('dep', dep);
+  params.set('arr', arr);
+
+  if (crossLimit && crossLimit > 0) {
+    params.set('crossLimit', String(crossLimit));
+    params.set('crosswindLimitKt', String(crossLimit));
+  }
+
+  if (etdIso && !Number.isNaN(new Date(etdIso).getTime())) {
+    params.set('etd', new Date(etdIso).toISOString());
+  }
+
+  const headers = await getAuthHeaders();
+
+  const r = await fetch(`${API_BASE}/brief/pdf?${params.toString()}`, {
+    headers,
+  });
+
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`PDF alınamadı: HTTP ${r.status} ${txt}`);
+  }
+
+  return r.blob();
+}
+
 export function getBriefPdfUrl(
   depIcao: string,
   arrIcao: string,
@@ -222,13 +279,15 @@ export async function fetchNearbyAirports(
   radiusKm = 120
 ): Promise<NearbyAirportRow[]> {
   try {
+    const headers = await getAuthHeaders();
+
     const url = `${API_BASE}/airports/near?lat=${encodeURIComponent(
       String(lat)
     )}&lng=${encodeURIComponent(String(lng))}&radiusKm=${encodeURIComponent(
       String(radiusKm)
     )}`;
 
-    const r = await fetch(url);
+    const r = await fetch(url, { headers });
     const data = await safeJson<any>(r);
 
     if (Array.isArray(data)) return data;
@@ -250,6 +309,8 @@ export async function fetchLiveAircraft(
   maxLng: number
 ): Promise<LiveAircraftRow[]> {
   try {
+    const headers = await getAuthHeaders();
+
     const params = new URLSearchParams();
 
     params.set('minLat', String(minLat));
@@ -259,7 +320,7 @@ export async function fetchLiveAircraft(
 
     const url = `${API_BASE}/traffic/live?${params.toString()}`;
 
-    const r = await fetch(url);
+    const r = await fetch(url, { headers });
     const data = await safeJson<any>(r);
 
     if (Array.isArray(data)) return data;
