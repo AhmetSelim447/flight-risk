@@ -6,13 +6,14 @@ import PDFDocument from "pdfkit";
 
 
 
+
 import fs from "fs";
 import path from "path";
 import net from "net";
 
 import { authMiddleware } from "./middlewares/auth";
 
-
+import { supabase } from "./lib/supabase";
 
 // ✅ Swagger UI
 import swaggerUi from "swagger-ui-express";
@@ -1909,6 +1910,113 @@ app.get("/brief", authMiddleware, async (req, res) => {
   }
 });
 
+
+app.post("/history", authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const body = req.body ?? {};
+
+    const dep = String(body.dep ?? body.brief?.airports?.dep?.icao ?? "").toUpperCase();
+    const arr = String(body.arr ?? body.brief?.airports?.arr?.icao ?? "").toUpperCase();
+    const brief = body.brief;
+
+    if (!dep || !arr || !brief) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid_history_payload",
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("brief_history")
+      .insert({
+        user_id: userId,
+        dep,
+        arr,
+        risk_score: brief?.risk?.score ?? null,
+        risk_class: brief?.risk?.class ?? null,
+        brief,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        error: error.message,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      item: data,
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: e?.message || "history_save_failed",
+    });
+  }
+});
+
+app.get("/history", authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    const { data, error } = await supabase
+      .from("brief_history")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        error: error.message,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      items: data ?? [],
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: e?.message || "history_fetch_failed",
+    });
+  }
+});
+
+app.delete("/history/:id", authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const id = String(req.params.id);
+
+    const { error } = await supabase
+      .from("brief_history")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) {
+      return res.status(500).json({
+        ok: false,
+        error: error.message,
+      });
+    }
+
+    return res.json({
+      ok: true,
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: e?.message || "history_delete_failed",
+    });
+  }
+});
 
 function pdfSafeText(value: unknown) {
   return String(value ?? "—")

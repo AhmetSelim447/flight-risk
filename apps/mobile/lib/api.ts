@@ -108,9 +108,13 @@ export async function fetchBrief(
   }
 
   const headers = await getAuthHeaders();
-  const r = await fetch(url, { headers });
+const r = await fetch(url, { headers });
 
-  return safeJson<BriefResponse>(r);
+const brief = await safeJson<BriefResponse>(r);
+
+void saveBriefHistory(dep, arr, brief);
+
+return brief;
 }
 
 export async function getNearbyAirports(
@@ -331,5 +335,79 @@ export async function fetchLiveAircraft(
   } catch (error) {
     console.warn('Live aircraft fetch failed:', error);
     return [];
+  }
+}
+
+
+export type BriefHistoryItem = {
+  id: string;
+  user_id: string;
+  dep: string;
+  arr: string;
+  risk_score?: number | null;
+  risk_class?: string | null;
+  brief: BriefResponse;
+  created_at: string;
+};
+
+export async function saveBriefHistory(
+  dep: string,
+  arr: string,
+  brief: BriefResponse
+): Promise<BriefHistoryItem | null> {
+  try {
+    const headers = await getAuthHeaders();
+
+    const r = await fetch(`${API_BASE}/history`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify({
+        dep: dep.trim().toUpperCase(),
+        arr: arr.trim().toUpperCase(),
+        brief,
+      }),
+    });
+
+    const data = await safeJson<{ ok: boolean; item: BriefHistoryItem }>(r);
+    return data.item;
+  } catch (error) {
+    console.warn("Brief history save failed:", error);
+    return null;
+  }
+}
+
+export async function getBriefHistory(): Promise<BriefHistoryItem[]> {
+  try {
+    const headers = await getAuthHeaders();
+
+    const r = await fetch(`${API_BASE}/history`, {
+      headers,
+    });
+
+    const data = await safeJson<{ ok: boolean; items: BriefHistoryItem[] }>(r);
+    return data.items ?? [];
+  } catch (error) {
+    console.warn("Brief history fetch failed:", error);
+    return [];
+  }
+}
+
+export async function deleteBriefHistory(id: string): Promise<boolean> {
+  try {
+    const headers = await getAuthHeaders();
+
+    const r = await fetch(`${API_BASE}/history/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers,
+    });
+
+    const data = await safeJson<{ ok: boolean }>(r);
+    return data.ok === true;
+  } catch (error) {
+    console.warn("Brief history delete failed:", error);
+    return false;
   }
 }
