@@ -1,4 +1,5 @@
-export const RISK_THRESHOLDS = { GREEN: 30, YELLOW: 70 } as const;
+// Kanonik risk sınıf eşikleri: score < GREEN → green, < YELLOW → yellow, aksi red
+export const RISK_THRESHOLDS = { GREEN: 40, YELLOW: 70 } as const;
 export const COLORS = {
   background: '#0A0E1A',
   surface: '#141B2D',

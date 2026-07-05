@@ -1,3 +1,11 @@
+import { RISK_THRESHOLDS } from "@flight-risk/shared";
+
+export function classifyScore(score: number): "green" | "yellow" | "red" {
+  if (score >= RISK_THRESHOLDS.YELLOW) return "red";
+  if (score >= RISK_THRESHOLDS.GREEN) return "yellow";
+  return "green";
+}
+
 export function windComponents(
   rwyHeadingDeg: number,
   windDirDeg: number | undefined,
@@ -157,11 +165,57 @@ export function riskScore(inp: RiskInput) {
 
   score = Math.max(0, Math.min(100, score));
 
-  const cls = score <= 30 ? "green" : score <= 70 ? "yellow" : "red";
+  let cls = classifyScore(score);
+
+  // Tek-faktör sınıf tabanları: toplam skor düşük olsa bile tek başına
+  // operasyonel karar gerektiren faktörler sınıfı yükseltir.
+  //   yellow tabanı: dikkat gerektiren tekil faktör
+  //   red tabanı: yaklaşma minimumu altı koşullar (CAT I civarı)
+  const floors: string[] = [];
+  const order = { green: 0, yellow: 1, red: 2 } as const;
+  let floorClass: "green" | "yellow" | "red" = "green";
+  const raiseFloor = (c: "yellow" | "red") => {
+    if (order[c] > order[floorClass]) floorClass = c;
+  };
+
+  // --- yellow tabanları ---
+  if (crossRatio > 1.0) {
+    floors.push(`Crosswind limit aşımı tek başına dikkat gerektirir (${inp.cross}kt > ${effectiveCrossLimit}kt)`);
+    raiseFloor("yellow");
+  }
+  if (inp.vis != null && inp.vis < 800) {
+    floors.push(`Çok düşük görüş tek başına dikkat gerektirir (${inp.vis} m)`);
+    raiseFloor("yellow");
+  }
+  // Substring eşleşmesi bilinçli: parser'lar TSRA/TSGR gibi birleşik token üretir
+  // ve skor tarafındaki konvektif kontrol de (satır ~88) aynı şekilde substring kullanır.
+  if (/(TS|CB)/.test(wxStr)) {
+    floors.push("Konvektif aktivite tek başına dikkat gerektirir");
+    raiseFloor("yellow");
+  }
+
+  // --- red tabanları (yaklaşma minimumu altı) ---
+  if (inp.vis != null && inp.vis < 550) {
+    floors.push(`Görüş yaklaşma minimumunun altında (${inp.vis} m)`);
+    raiseFloor("red");
+  }
+  if (inp.ceiling != null && inp.ceiling < 200) {
+    floors.push(`Tavan yaklaşma minimumunun altında (${inp.ceiling} ft)`);
+    raiseFloor("red");
+  }
+  if (inp.vis != null && inp.vis < 1000 && inp.ceiling != null && inp.ceiling < 300) {
+    floors.push("Görüş + tavan yaklaşma minimumu kombinasyonunun altında");
+    raiseFloor("red");
+  }
+
+  if (order[floorClass] > order[cls]) {
+    cls = floorClass;
+  }
 
   return {
     score,
-    class: cls as "green" | "yellow" | "red",
+    class: cls,
     reasons,
+    floors,
   };
 }
