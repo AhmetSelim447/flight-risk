@@ -4,9 +4,13 @@ import express from "express";
 import cors from "cors";
 import PDFDocument from "pdfkit";
 
+
+
 import fs from "fs";
 import path from "path";
 import net from "net";
+
+import { authMiddleware } from "./middlewares/auth";
 
 
 
@@ -263,6 +267,7 @@ function buildBriefLogItem(input: {
       query: input.req.query,
       ip: input.req.ip,
       userAgent: input.req.get("user-agent") ?? null,
+      userId: (input.req as any).user?.id ?? null,
     },
     summary: input.error
       ? {
@@ -1820,7 +1825,9 @@ app.post("/airports/reload", async (req, res) => {
   res.json({ ok: true, airports: getAirports().length, source: getAirportsSource(), loadedAt: getAirportsLoadedAt() });
 });
 
-app.get("/traffic", async (req, res) => {
+app.get("/traffic", authMiddleware, async (req, res) => {
+  const userId = (req as any).user!.id;
+
   try {
     const bbox = parseTrafficBBoxQuery(req.query as Record<string, unknown>);
 
@@ -1837,6 +1844,7 @@ app.get("/traffic", async (req, res) => {
 
     return res.json({
       ok: true,
+      userId,
       source: "opensky",
       live: true,
       cachedTtlMs: getTrafficCacheTtlMs(),
@@ -1855,7 +1863,9 @@ app.get("/traffic", async (req, res) => {
   }
 });
 
-app.get("/brief", async (req, res) => {
+app.get("/brief", authMiddleware, async (req, res) => {
+  const userId = (req as any).user!.id;
+  void userId;
   const startedAt = Date.now();
   const dep = String(req.query.dep ?? "").toUpperCase();
   const arr = String(req.query.arr ?? "").toUpperCase();
@@ -2093,7 +2103,10 @@ function getPrimaryDriver(risk: any) {
 }
 
 
-app.get("/brief/pdf", async (req, res) => {
+app.get("/brief/pdf", authMiddleware, async (req, res) => {
+  const userId = (req as any).user!.id;
+  void userId;
+
   try {
     const dep = String(req.query.dep ?? "").toUpperCase();
     const arr = String(req.query.arr ?? "").toUpperCase();
@@ -2618,6 +2631,92 @@ async function killProcessOnPort(port: number): Promise<boolean> {
   }
 }
 
+
+app.get('/traffic/live', authMiddleware, async (req, res) => {
+  const userId = (req as any).user!.id;
+
+  try {
+    const minLat = Number(req.query.minLat);
+    const maxLat = Number(req.query.maxLat);
+    const minLng = Number(req.query.minLng);
+    const maxLng = Number(req.query.maxLng);
+
+    if (
+      !Number.isFinite(minLat) ||
+      !Number.isFinite(maxLat) ||
+      !Number.isFinite(minLng) ||
+      !Number.isFinite(maxLng)
+    ) {
+      return res.status(400).json({ error: 'invalid bounds' });
+    }
+
+    const url =
+      `https://opensky-network.org/api/states/all` +
+      `?lamin=${encodeURIComponent(String(minLat))}` +
+      `&lamax=${encodeURIComponent(String(maxLat))}` +
+      `&lomin=${encodeURIComponent(String(minLng))}` +
+      `&lomax=${encodeURIComponent(String(maxLng))}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      return res.status(200).json({
+        aircraft: [],
+        source: 'opensky',
+        warning: `OpenSky returned ${response.status}`,
+      });
+    }
+
+    const data = await response.json();
+
+    const aircraft = Array.isArray(data.states)
+      ? data.states
+          .map((s: any[]) => ({
+            icao24: s[0],
+            callsign: typeof s[1] === 'string' ? s[1].trim() : '',
+            originCountry: s[2],
+            lon: s[5],
+            lat: s[6],
+            altitude: s[7],
+            velocity: s[9],
+            heading: s[10],
+          }))
+          .filter((a: any) => typeof a.lat === 'number' && typeof a.lon === 'number')
+      : [];
+
+    return res.json({
+      userId,
+      aircraft,
+      count: aircraft.length,
+      source: 'opensky',
+      fetchedAt: Date.now(),
+    });
+  } catch (error) {
+    console.error('[traffic/live] failed:', error);
+
+    return res.status(200).json({
+      aircraft: [],
+      source: 'opensky',
+      warning: 'traffic unavailable',
+    });
+  }
+});
+
+/**
+ * Protected user history scaffold.
+ * Şimdilik veri kaynağı bağlanmadığı için boş liste döner.
+ * Bir sonraki adımda burada userId ile DB/MMKV senkron history okunacak.
+ */
+app.get("/history", authMiddleware, async (req, res) => {
+  const userId = (req as any).user!.id;
+
+  return res.json({
+    ok: true,
+    userId,
+    items: [],
+  });
+});
+
 async function start() {
   const PORT = Number(process.env.PORT ?? 4000);
 
@@ -2675,72 +2774,4 @@ async function start() {
 start().catch((e) => {
   console.error("[start] failed:", e);
   process.exitCode = 1;
-});
-
-
-app.get('/traffic/live', async (req, res) => {
-  try {
-    const minLat = Number(req.query.minLat);
-    const maxLat = Number(req.query.maxLat);
-    const minLng = Number(req.query.minLng);
-    const maxLng = Number(req.query.maxLng);
-
-    if (
-      !Number.isFinite(minLat) ||
-      !Number.isFinite(maxLat) ||
-      !Number.isFinite(minLng) ||
-      !Number.isFinite(maxLng)
-    ) {
-      return res.status(400).json({ error: 'invalid bounds' });
-    }
-
-    const url =
-      `https://opensky-network.org/api/states/all` +
-      `?lamin=${encodeURIComponent(String(minLat))}` +
-      `&lamax=${encodeURIComponent(String(maxLat))}` +
-      `&lomin=${encodeURIComponent(String(minLng))}` +
-      `&lomax=${encodeURIComponent(String(maxLng))}`;
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      return res.status(200).json({
-        aircraft: [],
-        source: 'opensky',
-        warning: `OpenSky returned ${response.status}`,
-      });
-    }
-
-    const data = await response.json();
-
-    const aircraft = Array.isArray(data.states)
-      ? data.states
-          .map((s: any[]) => ({
-            icao24: s[0],
-            callsign: typeof s[1] === 'string' ? s[1].trim() : '',
-            originCountry: s[2],
-            lon: s[5],
-            lat: s[6],
-            altitude: s[7],
-            velocity: s[9],
-            heading: s[10],
-          }))
-          .filter((a: any) => typeof a.lat === 'number' && typeof a.lon === 'number')
-      : [];
-
-    return res.json({
-      aircraft,
-      count: aircraft.length,
-      source: 'opensky',
-      fetchedAt: Date.now(),
-    });
-  } catch (error) {
-    console.error('[traffic/live] failed:', error);
-
-    return res.status(200).json({
-      aircraft: [],
-      source: 'opensky',
-      warning: 'traffic unavailable',
-    });
-  }
 });

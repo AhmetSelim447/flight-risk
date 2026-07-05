@@ -1539,7 +1539,7 @@
   {
     "icao": "TR-0018",
     "city": "Bolu",
-    "name": "Bolu",
+    "name": "Bolu Airfield",
     "coords": {
       "lat": 40.748611,
       "lng": 31.651667
@@ -1566,6 +1566,23 @@
         "id": "06/24",
         "heading": 60,
         "length_m": 270
+      }
+    ],
+    "crossLimit": 15
+  },
+  {
+    "icao": "TR-0295",
+    "city": "Sivrihisar",
+    "name": "Sivrihisar Aviation Center S.H.M.",
+    "coords": {
+      "lat": 39.302492,
+      "lng": 31.498282
+    },
+    "runways": [
+      {
+        "id": "05/23",
+        "heading": 50,
+        "length_m": 1810
       }
     ],
     "crossLimit": 15
