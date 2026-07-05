@@ -1,9 +1,11 @@
 import { BriefResponse } from '@flight-risk/shared';
 
+import Constants from "expo-constants";
+
 const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL ||
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  'http://localhost:4000';
+  Constants.expoConfig?.extra?.apiUrl ??
+  process.env.EXPO_PUBLIC_API_URL ??
+  "http://10.0.2.2:4000";
 
 async function safeJson<T>(r: Response): Promise<T> {
   if (!r.ok) {
