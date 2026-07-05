@@ -47,6 +47,7 @@ Web UI (React + Vite)
 
 Express API (Orchestrator - Port 4000)
   -> /brief endpoint orchestrating METAR/TAF/NOTAM data and risk scores
+  -> Two-leg ETA-based risk core (lib/brief-risk.ts): DEP scored at ETD (METAR merged pessimistically with TAF window), ARR scored at ETA (TAF window first, METAR fallback), worst-leg-dominant combine, single-factor class floors (yellow + red below-minima tiers), canonical thresholds 40/70 from @flight-risk/shared. /brief accepts optional ?etd=<ISO>.
   -> /traffic endpoint (OpenSky API live traffic querying in routing bounding boxes)
   -> /feedback endpoint saving user ratings to local JSONL
 
@@ -120,7 +121,7 @@ Before handoff or continuation (especially with Opus 4.6), be aware of these act
 2. **Network Timeout on Remote Airport Fetch**:
    - The Express loader attempts to fetch CSV data from `ourairports.com` at startup, which consistently times out (attempt 1/2 and 2/2) in local environments due to network or proxy restrictions. This makes the local file `airports.generated.json` the sole provider of TR airport list data. Any cache regeneration (by passing `force=true`) will fail unless a stable external network connection is available.
 3. **TAF Historical Dataset & Separate ML Model Missing**:
-   - While METAR is predicted using a trained Logistic Regression model (ML), TAF is parsed and evaluated only heuristically by the rules engine and the LLM layer. TAF historical data collection is active via `collect-live --kinds taf`, but no separate ML model exists yet for forecasting weather deterioration trends.
+   - TAF is now parsed deterministically into time windows (metar-taf-parser) and drives ETA-based arrival scoring in the rule engine (lib/taf.ts + lib/brief-risk.ts). TAF historical data collection is active via `collect-live --kinds taf`. A separate ML model for weather deterioration trends (nowcasting) is still missing and is the next planned AI-core step; the current METAR Logistic Regression predicts a proxy-risk label derived from the same METAR thresholds it consumes (circular — see Next Steps #5).
 4. **Turkey Delay & Diversion Labels Missing**:
    - The ML model currently predicts an operational METAR "proxy-risk" label (caution/high weather thresholds) rather than actual accident risk or BTS-style operational airport delay/diversion labels for Turkey.
 5. **Briefing Feedback is Local Only**:
@@ -136,3 +137,5 @@ Before handoff or continuation (especially with Opus 4.6), be aware of these act
 2. **Collect more TAF snapshots** using the Windows Task Scheduler (`install-taf-snapshot-task.bat`) to build a historical dataset.
 3. **Develop a TAF trend scorer** and integrate it into the FastAPI ML pipeline once sufficient TAF historical data is collected.
 4. **Implement automated threshold tuning** using the manual feedback labels collected in `brief_feedback.jsonl`.
+5. **Nowcasting ML model**: predict the T+2/T+3h METAR-derived condition category from METAR trend + TAF features (labels are free from historical METAR sequences). This replaces the current circular proxy-risk logistic regression.
+6. **Calibration loop**: use brief_feedback.jsonl labels to tune thresholds; track Brier score.
