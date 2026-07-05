@@ -2018,6 +2018,100 @@ app.delete("/history/:id", authMiddleware, async (req, res) => {
   }
 });
 
+
+app.post("/favorites", authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const dep = String(req.body?.dep ?? "").trim().toUpperCase();
+    const arr = String(req.body?.arr ?? "").trim().toUpperCase();
+    const label = String(req.body?.label ?? `${dep} → ${arr}`).trim();
+
+    if (dep.length < 4 || arr.length < 4) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid_favorite_payload",
+      });
+    }
+
+    const { data, error } = await supabase
+      .from("favorites")
+      .upsert(
+        {
+          user_id: userId,
+          dep,
+          arr,
+          label,
+        },
+        {
+          onConflict: "user_id,dep,arr",
+        }
+      )
+      .select("*")
+      .single();
+
+    if (error) {
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+
+    return res.json({ ok: true, item: data });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: e?.message || "favorite_save_failed",
+    });
+  }
+});
+
+app.get("/favorites", authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+
+    const { data, error } = await supabase
+      .from("favorites")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+
+    return res.json({
+      ok: true,
+      items: data ?? [],
+    });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: e?.message || "favorites_fetch_failed",
+    });
+  }
+});
+
+app.delete("/favorites/:id", authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const id = String(req.params.id);
+
+    const { error } = await supabase
+      .from("favorites")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) {
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+
+    return res.json({ ok: true });
+  } catch (e: any) {
+    return res.status(500).json({
+      ok: false,
+      error: e?.message || "favorite_delete_failed",
+    });
+  }
+});
+
 function pdfSafeText(value: unknown) {
   return String(value ?? "—")
     .replace(/→/g, "->")

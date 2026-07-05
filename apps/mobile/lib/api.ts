@@ -2,6 +2,8 @@ import { BriefResponse } from '@flight-risk/shared';
 import Constants from 'expo-constants';
 import { supabase } from './supabase';
 
+import { saveOfflineBrief, getOfflineBrief } from "./offline";
+
 const API_BASE =
   Constants.expoConfig?.extra?.apiUrl ??
   process.env.EXPO_PUBLIC_API_URL ??
@@ -112,7 +114,8 @@ const r = await fetch(url, { headers });
 
 const brief = await safeJson<BriefResponse>(r);
 
-void saveBriefHistory(dep, arr, brief);
+void saveOfflineBrief(dep, arr, brief);
+
 
 return brief;
 }
@@ -408,6 +411,78 @@ export async function deleteBriefHistory(id: string): Promise<boolean> {
     return data.ok === true;
   } catch (error) {
     console.warn("Brief history delete failed:", error);
+    return false;
+  }
+}
+
+
+export type FavoriteRouteItem = {
+  id: string;
+  user_id: string;
+  dep: string;
+  arr: string;
+  label?: string | null;
+  created_at: string;
+};
+
+export async function addFavoriteRoute(
+  dep: string,
+  arr: string,
+  label?: string
+): Promise<FavoriteRouteItem | null> {
+  try {
+    const headers = await getAuthHeaders();
+
+    const r = await fetch(`${API_BASE}/favorites`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify({
+        dep: dep.trim().toUpperCase(),
+        arr: arr.trim().toUpperCase(),
+        label,
+      }),
+    });
+
+    const data = await safeJson<{ ok: boolean; item: FavoriteRouteItem }>(r);
+    return data.item;
+  } catch (error) {
+    console.warn("Favorite route save failed:", error);
+    return null;
+  }
+}
+
+export async function getFavoriteRoutes(): Promise<FavoriteRouteItem[]> {
+  try {
+    const headers = await getAuthHeaders();
+
+    const r = await fetch(`${API_BASE}/favorites`, {
+      headers,
+    });
+
+    const data = await safeJson<{ ok: boolean; items: FavoriteRouteItem[] }>(r);
+    return data.items ?? [];
+  } catch (error) {
+    console.warn("Favorite routes fetch failed:", error);
+    return [];
+  }
+}
+
+export async function deleteFavoriteRoute(id: string): Promise<boolean> {
+  try {
+    const headers = await getAuthHeaders();
+
+    const r = await fetch(`${API_BASE}/favorites/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers,
+    });
+
+    const data = await safeJson<{ ok: boolean }>(r);
+    return data.ok === true;
+  } catch (error) {
+    console.warn("Favorite route delete failed:", error);
     return false;
   }
 }
