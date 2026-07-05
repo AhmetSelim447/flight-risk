@@ -68,12 +68,11 @@ export async function searchAirports(
 export async function fetchBrief(
   depIcao: string,
   arrIcao: string,
-  crossLimit?: number
+  crossLimit?: number,
+  etdIso?: string
 ): Promise<BriefResponse> {
   const dep = depIcao.trim().toUpperCase();
   const arr = arrIcao.trim().toUpperCase();
-
-  console.log('FETCH BRIEF VALUES:', { dep, arr, crossLimit });
 
   if (dep.length < 4 || arr.length < 4) {
     throw new Error(`Geçersiz ICAO: DEP=${dep}, ARR=${arr}`);
@@ -86,7 +85,9 @@ export async function fetchBrief(
     url += `&crosswindLimitKt=${encodeURIComponent(String(crossLimit))}`;
   }
 
-  console.log('FETCH BRIEF URL:', url);
+  if (etdIso && !Number.isNaN(new Date(etdIso).getTime())) {
+    url += `&etd=${encodeURIComponent(new Date(etdIso).toISOString())}`;
+  }
 
   const r = await fetch(url);
   return safeJson<BriefResponse>(r);
@@ -168,7 +169,8 @@ function normalizeAirportRow(a: RawAirport): AirportRow {
 export function getBriefPdfUrl(
   depIcao: string,
   arrIcao: string,
-  crossLimit?: number
+  crossLimit?: number,
+  etdIso?: string
 ): string {
   const dep = depIcao.trim().toUpperCase();
   const arr = arrIcao.trim().toUpperCase();
@@ -181,6 +183,10 @@ export function getBriefPdfUrl(
   if (crossLimit && crossLimit > 0) {
     params.set('crossLimit', String(crossLimit));
     params.set('crosswindLimitKt', String(crossLimit));
+  }
+
+  if (etdIso && !Number.isNaN(new Date(etdIso).getTime())) {
+    params.set('etd', new Date(etdIso).toISOString());
   }
 
   return `${API_BASE}/brief/pdf?${params.toString()}`;
