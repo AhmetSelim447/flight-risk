@@ -113,6 +113,24 @@ export type AiBriefReport = {
     confidenceNote: string;
     limitedAdjustment: string;
 };
+export type LegRiskSummary = {
+    score: number;
+    class: "green" | "yellow" | "red";
+    reasons: string[];
+    floors: string[];
+    conditionsSource: "metar" | "taf" | "metar+taf" | "none";
+    headwind: number;
+    crosswind: number;
+    vis?: number;
+    ceiling?: number;
+    wx?: string[];
+};
+export type FlightPlanSummary = {
+    etdUtc: string;
+    etaUtc: string;
+    distanceKm: number;
+    estFlightMin: number;
+};
 export type Risk = {
     score: number;
     class: "green" | "yellow" | "red";
@@ -121,6 +139,12 @@ export type Risk = {
     reasons: string[];
     alternates: string[];
     ml?: AiRiskModel;
+    legs?: {
+        dep: LegRiskSummary;
+        arr: LegRiskSummary;
+    };
+    plan?: FlightPlanSummary;
+    degraded?: boolean;
 };
 export type BriefResponse = {
     airports: {

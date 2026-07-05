@@ -18,6 +18,7 @@ import { requestTimeout } from "./middlewares/timeout";
 
 import { haversineKm } from "./lib/geo";
 import { windComponents, riskScore, classifyScore } from "./lib/risk";
+import { computeRouteRisk } from "./lib/brief-risk";
 import { getMetar, getTaf } from "./lib/met";
 import { getNotam } from "./lib/notam";
 import {
@@ -1211,7 +1212,7 @@ function buildAlternateCompare(
 
 /* ================= core ================= */
 /* ================= core ================= */
-async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?: number }) {
+async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?: number; etd?: string }) {
   await ensureAirportsReady();
 
   const dep = byICAO(depIcao);
@@ -1243,15 +1244,22 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
       ? Number(opts.crossLimit)
       : dep.crossLimit ?? 15;
 
-  const riskBase = riskScore({
-    vis: mDep?.parsed?.vis,
-    ceiling: mDep?.parsed?.ceiling,
-    wx: mDep?.parsed?.wx ?? [],
-    head: wcDep.head,
-    cross: wcDep.cross,
+  const routeRisk = computeRouteRisk({
+    dep: { icao: dep.icao, coords: dep.coords, runways: dep.runways },
+    arr: { icao: arr.icao, coords: arr.coords, runways: arr.runways },
+    depMetar: mDep ? { parsed: mDep.parsed, issuedAtIso: mDep.issued_at_utc } : null,
+    arrMetar: mArr ? { parsed: mArr.parsed, issuedAtIso: mArr.issued_at_utc } : null,
+    depTafRaw: tDep?.raw ?? null,
+    depTafIssuedIso: tDep?.issued_at_utc ?? null,
+    arrTafRaw: tArr?.raw ?? null,
+    arrTafIssuedIso: tArr?.issued_at_utc ?? null,
+    depCriticalNotams: depCriticalNotamCount,
+    arrCriticalNotams: arrCriticalNotamCount,
     crossLimit: chosenCrossLimit,
-    notamCritical: notamCriticalCount,
+    etdIso: opts?.etd,
   });
+
+  const riskBase = { score: routeRisk.score, class: routeRisk.class, reasons: routeRisk.reasons };
 
   const confidence = computeRiskConfidence({
     depMet: mDep,
@@ -1360,55 +1368,48 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
 
   const finalScore = breakdown.total;
 
-  const finalClass = classifyScore(finalScore);
+  // Birleşik sınıf: skor eşiği + iki-bacaklı rota motorunun sınıf tabanı
+  let finalClass = classifyScore(finalScore);
+  if (routeRisk.class === "red") finalClass = "red";
+  else if (routeRisk.class === "yellow" && finalClass === "green") finalClass = "yellow";
 
   const riskFinal = {
     ...riskBase,
     score: finalScore,
     class: finalClass,
     breakdown,
+    legs: {
+      dep: {
+        score: routeRisk.legs.dep.score,
+        class: routeRisk.legs.dep.class,
+        reasons: routeRisk.legs.dep.reasons,
+        floors: routeRisk.legs.dep.floors,
+        conditionsSource: routeRisk.legs.dep.conditionsSource,
+        headwind: routeRisk.legs.dep.head,
+        crosswind: routeRisk.legs.dep.cross,
+        vis: routeRisk.legs.dep.conditions.vis,
+        ceiling: routeRisk.legs.dep.conditions.ceiling,
+        wx: routeRisk.legs.dep.conditions.wx,
+      },
+      arr: {
+        score: routeRisk.legs.arr.score,
+        class: routeRisk.legs.arr.class,
+        reasons: routeRisk.legs.arr.reasons,
+        floors: routeRisk.legs.arr.floors,
+        conditionsSource: routeRisk.legs.arr.conditionsSource,
+        headwind: routeRisk.legs.arr.head,
+        crosswind: routeRisk.legs.arr.cross,
+        vis: routeRisk.legs.arr.conditions.vis,
+        ceiling: routeRisk.legs.arr.conditions.ceiling,
+        wx: routeRisk.legs.arr.conditions.wx,
+      },
+    },
+    plan: routeRisk.plan,
+    degraded: routeRisk.degraded,
   };
 
-  const reasons: string[] = [];
-
-  if (typeof depCeiling === "number" && depCeiling < 600) {
-    reasons.push("Çok düşük tavan (<600 ft)");
-  } else if (typeof depCeiling === "number" && depCeiling < 1000) {
-    reasons.push("Düşük tavan (<1000 ft)");
-  } else if (typeof depCeiling === "number" && depCeiling < 1500) {
-    reasons.push("Sınırlı tavan (<1500 ft)");
-  }
-
-  if (typeof depVis === "number" && depVis < 1500) {
-    reasons.push("Çok düşük görüş (<1500 m)");
-  } else if (typeof depVis === "number" && depVis < 3000) {
-    reasons.push("Düşük görüş (<3000 m)");
-  } else if (typeof depVis === "number" && depVis < 5000) {
-    reasons.push("Sınırlı görüş (<5000 m)");
-  }
-
-  if (/(CB|TS)/.test(depWxStr)) {
-    reasons.push("Konvektif hava olayı riski var");
-  } else if (/(SHRA|SHSN|SQ|GR|GS|FZ)/.test(depWxStr)) {
-    reasons.push("Aktif hava olayı etkisi var");
-  }
-
-  if (crossRatio > 1.0) {
-    reasons.push(
-      `Crosswind limit üstünde (${Math.abs(wcDep.cross)} kt / limit ${chosenCrossLimit})`
-    );
-  } else if (crossRatio > 0.85) {
-    reasons.push(
-      `Crosswind sınıra yakın (${Math.abs(wcDep.cross)} kt / limit ${chosenCrossLimit})`
-    );
-  }
-
-  if (wcDep.head < 0) {
-    const tailwind = Math.abs(wcDep.head);
-    if (tailwind >= 10) {
-      reasons.push(`Tailwind etkisi var (${tailwind} kt)`);
-    }
-  }
+  // İki-bacaklı motorun gerekçeleri temel alınır; NOTAM kategori zenginleştirmesi eklenir
+  const reasons: string[] = [...routeRisk.reasons];
 
   // NOTAM gerekçelerini kategori bazlı zenginleştir
   const notamCatMap: Record<string, string> = {
@@ -1859,8 +1860,11 @@ app.get("/brief", async (req, res) => {
   const dep = String(req.query.dep ?? "").toUpperCase();
   const arr = String(req.query.arr ?? "").toUpperCase();
   const cl = Number(req.query.crossLimit);
+  const etdRaw = String(req.query.etd ?? "").trim();
+  const etd =
+    etdRaw && !Number.isNaN(new Date(etdRaw).getTime()) ? new Date(etdRaw).toISOString() : undefined;
   try {
-    const brief = await buildBrief(dep, arr, { crossLimit: Number.isFinite(cl) ? cl : undefined });
+    const brief = await buildBrief(dep, arr, { crossLimit: Number.isFinite(cl) ? cl : undefined, etd });
     try {
       appendBriefQueryLog(
         buildBriefLogItem({
@@ -2096,9 +2100,13 @@ app.get("/brief/pdf", async (req, res) => {
     const windUnit = String(req.query.windUnit ?? "kt") as WindUnit;
     const distUnit = String(req.query.distUnit ?? "km") as DistUnit;
     const cl = Number(req.query.crossLimit);
+    const etdRaw = String(req.query.etd ?? "").trim();
+    const etd =
+      etdRaw && !Number.isNaN(new Date(etdRaw).getTime()) ? new Date(etdRaw).toISOString() : undefined;
 
     const brief = await buildBrief(dep, arr, {
       crossLimit: Number.isFinite(cl) ? cl : undefined,
+      etd,
     });
 
     res.setHeader("Content-Type", "application/pdf");
