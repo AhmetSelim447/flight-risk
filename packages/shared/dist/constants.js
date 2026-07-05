@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.COLORS = exports.RISK_THRESHOLDS = void 0;
-exports.RISK_THRESHOLDS = { GREEN: 30, YELLOW: 70 };
+// Kanonik risk sınıf eşikleri: score < GREEN → green, < YELLOW → yellow, aksi red
+exports.RISK_THRESHOLDS = { GREEN: 40, YELLOW: 70 };
 exports.COLORS = {
     background: '#0A0E1A',
     surface: '#141B2D',

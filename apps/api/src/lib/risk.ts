@@ -1,3 +1,11 @@
+import { RISK_THRESHOLDS } from "@flight-risk/shared";
+
+export function classifyScore(score: number): "green" | "yellow" | "red" {
+  if (score >= RISK_THRESHOLDS.YELLOW) return "red";
+  if (score >= RISK_THRESHOLDS.GREEN) return "yellow";
+  return "green";
+}
+
 export function windComponents(
   rwyHeadingDeg: number,
   windDirDeg: number | undefined,
@@ -157,11 +165,30 @@ export function riskScore(inp: RiskInput) {
 
   score = Math.max(0, Math.min(100, score));
 
-  const cls = score <= 30 ? "green" : score <= 70 ? "yellow" : "red";
+  let cls = classifyScore(score);
+
+  // Tek-faktör sınıf tabanları: toplam skor düşük olsa bile tek başına
+  // operasyonel karar gerektiren faktörler sınıfı en az yellow yapar.
+  const floors: string[] = [];
+
+  if (crossRatio > 1.0) {
+    floors.push(`Crosswind limit aşımı tek başına dikkat gerektirir (${inp.cross}kt > ${effectiveCrossLimit}kt)`);
+  }
+  if (inp.vis != null && inp.vis < 800) {
+    floors.push(`Çok düşük görüş tek başına dikkat gerektirir (${inp.vis} m)`);
+  }
+  if (/(^|\s)(TS|CB)(\s|$)/.test(` ${wxStr} `)) {
+    floors.push("Konvektif aktivite tek başına dikkat gerektirir");
+  }
+
+  if (floors.length > 0 && cls === "green") {
+    cls = "yellow";
+  }
 
   return {
     score,
-    class: cls as "green" | "yellow" | "red",
+    class: cls,
     reasons,
+    floors,
   };
 }

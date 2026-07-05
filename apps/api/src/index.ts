@@ -17,7 +17,7 @@ import { apiRateLimit } from "./middlewares/ratelimit";
 import { requestTimeout } from "./middlewares/timeout";
 
 import { haversineKm } from "./lib/geo";
-import { windComponents, riskScore } from "./lib/risk";
+import { windComponents, riskScore, classifyScore } from "./lib/risk";
 import { getMetar, getTaf } from "./lib/met";
 import { getNotam } from "./lib/notam";
 import {
@@ -1360,8 +1360,7 @@ async function buildBrief(depIcao: string, arrIcao: string, opts?: { crossLimit?
 
   const finalScore = breakdown.total;
 
-  const finalClass: "green" | "yellow" | "red" =
-    finalScore >= 70 ? "red" : finalScore >= 40 ? "yellow" : "green";
+  const finalClass = classifyScore(finalScore);
 
   const riskFinal = {
     ...riskBase,

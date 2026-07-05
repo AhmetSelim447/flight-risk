@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { riskScore, windComponents } from "../src/lib/risk";
+import { riskScore, windComponents, classifyScore } from "../src/lib/risk";
 
 describe("windComponents", () => {
   it("computes pure headwind when wind aligned with runway", () => {
@@ -51,5 +51,41 @@ describe("riskScore (characterization)", () => {
     const a = riskScore({ vis: 9999, wx: [], head: 0, cross: 13, notamCritical: 0 });
     // 13/15 = 0.867 → ">= 0.85" branch → 12
     expect(a.score).toBe(12);
+  });
+});
+
+describe("classifyScore (canonical thresholds 40/70)", () => {
+  it("maps 39 to green, 40 to yellow, 69 to yellow, 70 to red", () => {
+    expect(classifyScore(39)).toBe("green");
+    expect(classifyScore(40)).toBe("yellow");
+    expect(classifyScore(69)).toBe("yellow");
+    expect(classifyScore(70)).toBe("red");
+  });
+});
+
+describe("riskScore single-factor class floors", () => {
+  it("floors class to yellow when crosswind exceeds limit even if total score is green", () => {
+    const r = riskScore({ vis: 9999, wx: [], head: 5, cross: 18, crossLimit: 15, notamCritical: 0 });
+    // score 22 (< 40) ama limit aşımı → en az yellow
+    expect(r.score).toBeLessThan(40);
+    expect(r.class).toBe("yellow");
+    expect(r.floors.some((f) => f.includes("Crosswind"))).toBe(true);
+  });
+
+  it("floors class to yellow when visibility is below 800 m", () => {
+    const r = riskScore({ vis: 700, wx: [], head: 10, cross: 0, notamCritical: 0 });
+    expect(r.class === "yellow" || r.class === "red").toBe(true);
+    expect(r.floors.some((f) => f.includes("görüş"))).toBe(true);
+  });
+
+  it("floors class to yellow when thunderstorm present", () => {
+    const r = riskScore({ vis: 9999, wx: ["TS"], head: 10, cross: 0, notamCritical: 0 });
+    expect(r.class === "yellow" || r.class === "red").toBe(true);
+  });
+
+  it("does not floor a clean flight", () => {
+    const r = riskScore({ vis: 9999, wx: [], head: 10, cross: 2, notamCritical: 0 });
+    expect(r.class).toBe("green");
+    expect(r.floors).toEqual([]);
   });
 });

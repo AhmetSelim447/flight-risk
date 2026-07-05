@@ -1,5 +1,5 @@
 export declare const RISK_THRESHOLDS: {
-    readonly GREEN: 30;
+    readonly GREEN: 40;
     readonly YELLOW: 70;
 };
 export declare const COLORS: {
