@@ -83,6 +83,13 @@ describe("riskScore single-factor class floors", () => {
     expect(r.class === "yellow" || r.class === "red").toBe(true);
   });
 
+  it("floors class for combined thunderstorm tokens (TSRA) as METAR/TAF parsers emit them", () => {
+    // met.ts RE_WX ve taf.ts wxCodes TSRA'yı tek birleşik token üretir
+    const r = riskScore({ vis: 9999, wx: ["TSRA"], head: 10, cross: 0, notamCritical: 0 });
+    expect(r.class === "yellow" || r.class === "red").toBe(true);
+    expect(r.floors.some((f) => f.includes("Konvektif"))).toBe(true);
+  });
+
   it("does not floor a clean flight", () => {
     const r = riskScore({ vis: 9999, wx: [], head: 10, cross: 2, notamCritical: 0 });
     expect(r.class).toBe("green");

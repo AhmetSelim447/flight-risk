@@ -187,7 +187,9 @@ export function riskScore(inp: RiskInput) {
     floors.push(`Çok düşük görüş tek başına dikkat gerektirir (${inp.vis} m)`);
     raiseFloor("yellow");
   }
-  if (/(^|\s)(TS|CB)(\s|$)/.test(` ${wxStr} `)) {
+  // Substring eşleşmesi bilinçli: parser'lar TSRA/TSGR gibi birleşik token üretir
+  // ve skor tarafındaki konvektif kontrol de (satır ~88) aynı şekilde substring kullanır.
+  if (/(TS|CB)/.test(wxStr)) {
     floors.push("Konvektif aktivite tek başına dikkat gerektirir");
     raiseFloor("yellow");
   }
