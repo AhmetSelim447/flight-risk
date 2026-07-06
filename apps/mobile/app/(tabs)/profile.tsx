@@ -14,10 +14,11 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useBriefStore } from '../../stores/briefStore';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function Profile() {
   const { user, signOut } = useAuthStore();
-
+  const router = useRouter();
   const {
     crossLimitKt,
     windUnit,
@@ -316,6 +317,45 @@ const handleSaveProfile = async () => {
             )}
           </TouchableOpacity>
         </View>
+
+
+            <View style={styles.section}>
+  <Text style={styles.sectionTitle}>Kayıtlar</Text>
+
+  <View style={styles.card}>
+    <TouchableOpacity style={styles.infoRow} onPress={() => router.push('/history')}>
+      <Ionicons name="time-outline" size={22} color={COLORS.primaryLight} style={styles.icon} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle}>Geçmiş Brifingler</Text>
+        <Text style={styles.rowSubtitle}>Daha önce oluşturulan analizler</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+    </TouchableOpacity>
+
+    <View style={styles.separator} />
+
+    <TouchableOpacity style={styles.infoRow} onPress={() => router.push('/favorites')}>
+      <Ionicons name="star-outline" size={22} color={COLORS.primaryLight} style={styles.icon} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle}>Favori Rotalar</Text>
+        <Text style={styles.rowSubtitle}>Sık kullanılan uçuş rotaları</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+    </TouchableOpacity>
+
+    <View style={styles.separator} />
+
+    <TouchableOpacity style={styles.infoRow} onPress={() => router.push('/offline')}>
+      <Ionicons name="cloud-offline-outline" size={22} color={COLORS.primaryLight} style={styles.icon} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle}>Offline Brifingler</Text>
+        <Text style={styles.rowSubtitle}>Cihaza kaydedilen son analizler</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+    </TouchableOpacity>
+  </View>
+</View>
+
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Uygulama Bilgisi</Text>

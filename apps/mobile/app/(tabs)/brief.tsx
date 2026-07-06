@@ -172,9 +172,18 @@ export default function Brief() {
               <View>
                 <Text style={styles.resultsTitle}>Analiz Sonuçları</Text>
                 <Text style={styles.resultsSubtitle}>
+                  <Text style={styles.dataAgeText}>
+                    Brief: şimdi oluşturuldu • METAR: {
+                      lastBrief.met?.dep?.[0]?.issued_at_utc
+                        ? new Date(lastBrief.met.dep[0].issued_at_utc).toLocaleString()
+                        : 'bilinmiyor'
+                    }
+                  </Text>
                   {lastBrief.airports.dep.icao} → {lastBrief.airports.arr.icao}
                 </Text>
               </View>
+
+       
 
               <View style={styles.headerActions}>
                 <TouchableOpacity
@@ -406,6 +415,13 @@ const styles = StyleSheet.create({
   },
   resultsTitle: { fontSize: FONT_SIZES.lg, fontWeight: 'bold', color: COLORS.textPrimary },
   resultsSubtitle: { color: COLORS.textSecondary, fontSize: FONT_SIZES.sm, marginTop: 2 },
+
+  dataAgeText: {
+  color: COLORS.textMuted,
+  fontSize: FONT_SIZES.xs,
+  marginTop: 4,
+},
+
 
   headerActions: {
     flexDirection: 'row',
